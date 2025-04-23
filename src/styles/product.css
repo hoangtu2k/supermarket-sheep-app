@@ -1,0 +1,71 @@
+.btn-close {
+    background-color: #677484 !important;
+    color: white !important;
+}
+
+
+
+form.card .form-select-title{
+    font-size: 16px !important;font-weight: 700 !important;
+}
+
+form .card .form-group{margin-bottom: 10px !important;}
+form .card .form-group h6{margin-bottom: 0px !important; font-size: 13px; font-weight: 700 !important;}
+form .card .form-group input, 
+.form-group textarea{
+  background: #fafafa; 
+  width: 100%; outline: none !important; 
+  border: 1px solid rgba(0,0,0,0.1) !important;
+  height: 60px; padding-left: 0px !important; 
+  border-radius: 0px !important; 
+  font-size: 14px;
+}
+
+form .card.form-group textarea{
+  height: 120px; 
+  padding-top: 15px;
+}
+
+
+form .card .form-group input {
+    height: 30px !important;
+    background: none !important;
+    border: none !important; /* Bỏ viền xung quanh */
+    border-bottom: 2px solid #c2c7ce !important; /* Giữ lại viền dưới */
+    outline: none !important; /* Bỏ outline khi input được chọn */
+    box-shadow: none !important; /* Bỏ shadow nếu có */
+}
+
+form .card .form-group input:focus {
+    border-bottom: 2px solid #00b63e !important; /* Đổi màu viền dưới khi input được chọn */
+}
+
+.modal-content {
+    overflow-y: auto; /* Cho phép cuộn theo chiều dọc */
+    max-height: 80vh; /* Chiều cao tối đa */
+  }
+
+
+  @media (max-width: 575px) {
+
+    .col-md-3 {
+      flex: 1 1 160%; /* Mỗi cột chiếm 100% chiều rộng */
+      max-width: 300px; /* Giới hạn chiều rộng tối đa */
+      margin: 10px; /* Khoảng cách giữa các cột */
+    }
+    
+  }
+
+  .right-content-cart .card .form-group input {
+    height: 30px !important;
+    background: none !important;
+    border: none !important; /* Bỏ viền xung quanh */
+    border-bottom: 2px solid #c2c7ce !important; /* Giữ lại viền dưới */
+    outline: none !important; /* Bỏ outline khi input được chọn */
+    box-shadow: none !important; /* Bỏ shadow nếu có */
+    width: 100%;
+}
+
+  .right-content-cart .card .form-group input:focus {
+    border-bottom: 2px solid #00b63e !important; 
+  }
