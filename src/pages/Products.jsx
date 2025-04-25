@@ -1,4 +1,4 @@
-import "../styles/product.css";
+
 import React, { useContext, useEffect, useState } from "react";
 import axios from "../utils/axiosConfig";
 import { toast } from "react-toastify";

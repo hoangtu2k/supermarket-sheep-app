@@ -51,34 +51,12 @@ const ProductUpload = () => {
     <>
       <div className="right-content w-100">
       
-        <div className="card shadow border-0 w-100 flex-row p-4 res-col">
-          <h5 className="mb-0">Chi tiết sản phẩm</h5>
-          <Breadcrumb aria-label="breadcrumb" className="ml-auto breadcrumbs_">
-            <StyledBreadcrumb
-              component="a"
-              href="/"
-              label="Tổng quan"
-              icon={<HomeIcon fontSize="small" />}
-            />
-
-            <StyledBreadcrumb
-              component="a"
-              href="/products"
-              label="Danh sách sản phẩm"
-              deleteIcon={<ExpandMore />}
-            />
-
-            <StyledBreadcrumb
-              label="Tải lên sản phẩm"
-              deleteIcon={<ExpandMore />}
-            />
-          </Breadcrumb>
-        </div>
+ 
 
         <form className="form">
 
                 <div className="row">
-                    <div className="col-md-7">
+                    <div className="col-md-12">
                         <div className="card p-4 mt-0">
                             <h5 class="mb-4">Thông tin cơ bản</h5>
                             
@@ -86,16 +64,12 @@ const ProductUpload = () => {
                                     <h6>Tên</h6>
                                     <input type="text" />
                             </div>
-                            <div className="form-group">
-                                    <h6>Mô tả</h6>
-                                    <textarea rows={5} cols={10} />
-                            </div>
 
                             <div className="row">
                                     <div className="col">
 
                                             <div className="form-group">
-                                                    <h6>Giá bán</h6>
+                                                    <h6>Số lượng</h6>
                                                     <input type="text" />
                                             </div>
                                         
@@ -110,6 +84,13 @@ const ProductUpload = () => {
                                     </div>                              
                             
                             </div>
+
+                            <div className="form-group">
+                                    <h6>Mô tả</h6>
+                                    <textarea rows={5} cols={10} />
+                            </div>
+
+                            
 
                             <div className="row">
                                     <div className="col">
@@ -150,18 +131,13 @@ const ProductUpload = () => {
                             </div>
                            
                         </div>
-                    </div>
-                    <div className="col-md-5">
-                        <div className="card p-4 mt-0">
-                            
-                        </div>
-                    </div>
+                    </div>                  
 
                 </div>
 
                 <div className="card p-4 mt-0">
                     <div className="imagesUploadSec">
-                            <h5 class="mb-4">Media And Published</h5>
+                            <h5 class="mb-4">Truyền thông và xuất bản</h5>
                             <div className="imgUploadBox d-flex align-items-center">
 
                                     <div className="uploadBox">
@@ -180,7 +156,7 @@ const ProductUpload = () => {
                                         <input type="file" multiple="" name="images" />
                                         <div className="info">
                                         <FaRegImages />
-                                        <h5>image upload</h5>
+                                        <h5>Tải hình ảnh lên</h5>
                                         </div>
                                     </div>
 
@@ -191,7 +167,7 @@ const ProductUpload = () => {
 
                     <br/>
 
-                    <Button className="btn-blue btn-lg btn-big"><FaCloudUploadAlt/>&nbsp; PUBLISH AND VIEW</Button>
+                    <Button className="btn-blue btn-lg btn-big"><FaCloudUploadAlt/>&nbsp; XUẤT BẢN VÀ XEM</Button>
                    
                 </div>
 
