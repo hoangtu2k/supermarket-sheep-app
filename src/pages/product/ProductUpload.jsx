@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { emphasize, styled } from "@mui/material/styles";
-import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import { MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
@@ -9,34 +7,11 @@ import { FaCloudUploadAlt, FaRegImages } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-
-import { storage } from "../services/firebase";
-
-import { productService } from "../services/productService";
-
-const StyledBreadcrumb = styled(Chip)(({ theme }) => {
-  const backgroundColor =
-    theme.palette.mode === "light"
-      ? theme.palette.grey[100]
-      : theme.palette.grey[800];
-  return {
-    backgroundColor,
-    height: theme.spacing(3),
-    color: theme.palette.text.primary,
-    fontWeight: theme.typography.fontWeightRegular,
-    "&:hover, &focus": {
-      backgroundColor: emphasize(backgroundColor, 0.06),
-    },
-    "&:active": {
-      boxShadow: theme.shadows[1],
-      backgroundColor: emphasize(backgroundColor, 0.12),
-    },
-  };
-});
+import { storage } from "../../services/firebase";
+import { productService } from "../../services/productService";
 
 const ProductUpload = () => {
 
-  const [id, setId] = useState(null);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -49,6 +24,16 @@ const ProductUpload = () => {
 
   const navigate = useNavigate();
 
+  const resetFormFields = () => {
+    setCode("");
+    setName("");
+    setDescription("");
+    setPrice("");
+    setQuantity(0);
+    setWeight("");
+    setImage(null);
+    setImagePreview(null);
+  };
 
   const handleImageChange = (event) => {
     const file = event.target.files[0];
@@ -137,18 +122,6 @@ const ProductUpload = () => {
       setIsSubmitting(false);
     }
   };
-
-  const resetFormFields = () => {
-    setCode("");
-    setName("");
-    setDescription("");
-    setPrice("");
-    setQuantity(0);
-    setWeight("");
-    setImage(null);
-    setImagePreview(null);
-  };
-
 
   const [categoryVal, setcategoryVal] = useState('');
   const [brandVal, setbrandVal] = useState('');
@@ -255,17 +228,13 @@ const ProductUpload = () => {
 
                 </div>
 
-
-
-              
-
               </div>
             </div>
 
             <div className="col-md-6">
               <div className="card p-4 mt-0">
 
-              <div className="row">
+                <div className="row">
                   <div className="col">
                     <h6>Danh mục</h6>
                     <Select

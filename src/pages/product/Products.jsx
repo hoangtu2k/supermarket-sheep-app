@@ -1,11 +1,10 @@
 
 import React, { useContext, useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { MyContext } from "../App";
-import { storage } from "../services/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { MyContext } from "../../App";
 import { MdDelete } from "react-icons/md";
-import { FaEye, FaPencilAlt, FaRegImages } from "react-icons/fa";
+import { FaEye, FaPencilAlt } from "react-icons/fa";
+import { RxReset } from "react-icons/rx";
 import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import FormControl from "@mui/material/FormControl";
@@ -15,8 +14,9 @@ import Box from "@mui/material/Box";
 import Modal from "@mui/material/Modal";
 import Typography from "@mui/material/Typography";
 import Swal from "sweetalert2";
+import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
-import { productService } from "../services/productService";
+import { productService } from "../../services/productService";
 
 
 const style = {
@@ -64,6 +64,7 @@ const Products = () => {
     const [imagePreview, setImagePreview] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const navigate = useNavigate(); // Khởi tạo useNavigate
 
     const handleChangeCategory = (event) => {
         setCategory(event.target.value);
@@ -113,119 +114,54 @@ const Products = () => {
     const formatPrice = (price) => {
         return new Intl.NumberFormat("vi-VN").format(price) + " VND";
     };
-    
 
-    
+    // Hàm xóa sản phẩm
+    const handleDeleteProduct = async (productId) => {
+        const result = await Swal.fire({
+            title: 'Bạn có chắc chắn muốn xóa sản phẩm này?',
+            showCancelButton: true,
+            confirmButtonText: 'Xóa',
+            cancelButtonText: 'Hủy',
+        });
 
-
-    const handleSubmitProductUpdate = async (e) => {
-        e.preventDefault();
-
-        if (isSubmitting) return;
-
-        setIsSubmitting(true);
-
-        try {
-            let imageUrl = null;
-
-            // Upload ảnh mới nếu có
-            if (image) {
-                const storageRef = ref(storage, `images/sheepshop/${image.name}`);
-                await uploadBytes(storageRef, image);
-                imageUrl = await getDownloadURL(storageRef);
+        if (result.isConfirmed) {
+            try {
+                await productService.deleteProduct(productId);
+                toast.success('Xóa sản phẩm thành công');
+                fetchProducts(); // Cập nhật lại danh sách sản phẩm
+            } catch (error) {
+                toast.error(`Lỗi khi xóa sản phẩm: ${error.response?.data?.message || error.message}`);
             }
-
-            // Gửi yêu cầu cập nhật sản phẩm
-            const productData = {
-                code,
-                name,
-                description,
-                price: parseFloat(price),
-                quantity: parseInt(quantity),
-                weight: parseFloat(weight),
-                status: parseInt(status),
-                brandId: brand,
-                categoryId: category,
-            };
-
-            // Nếu có ảnh mới thì thêm vào dữ liệu
-            if (imageUrl) {
-                productData.imageUrl = imageUrl;
-            }
-
-            await productService.updateProduct(id, productData);
-
-            toast.success("Cập nhật sản phẩm thành công");
-            handleCloseModelAddAndUpdateProduct();
-            fetchProducts();
-        } catch (error) {
-            console.error("Error:", error);
-            toast.error(`Lỗi khi cập nhật sản phẩm: ${error.response?.data?.message || error.message}`);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
-    const handleOpenModelUpdateProduct = (product) => {
-        setId(product.id);
-        setCode(product.code);
-        setBarcode(product.barcode);
-        setName(product.name);
-        setPrice(product.price);
-        setWeight(product.weight);
-        setCategory(product.categoryId);
-        setBrand(product.brandId);
-
-        const mainImage = product.imageUrl
-            ? [{ url: product.imageUrl, main: true }]
-            : [];
-        const listImageNotMain = Array.isArray(product.notMainImages)
-            ? product.notMainImages
-            : [];
-
-        const additionalImages = listImageNotMain
-            .slice(0, 1)
-            .map((url) => ({ file: { url }, main: false, additional: true }));
-        const featuredImages = listImageNotMain
-            .slice(1, 2)
-            .map((url) => ({ file: { url }, main: false, featured: true }));
-        const secondaryImages = listImageNotMain
-            .slice(2, 3)
-            .map((url) => ({ file: { url }, main: false, secondary: true }));
-
-        // Set images and previews
-        setImages([
-            ...mainImage,
-            ...additionalImages,
-            ...featuredImages,
-            ...secondaryImages,
-        ]);
-        setImagePreviews({
-            main: mainImage,
-            additional: additionalImages.map((item) => item.file),
-            featured: featuredImages.map((item) => item.file),
-            secondary: secondaryImages.map((item) => item.file),
+    // Hàm khôi phục sản phẩm
+    const handleResetProduct = async (productId) => {
+        const result = await Swal.fire({
+            title: 'Bạn có chắc chắn muốn khôi phục sản phẩm này?',
+            showCancelButton: true,
+            confirmButtonText: 'Đồng ý',
+            cancelButtonText: 'Hủy',
         });
 
-        setOpenModelUpdateProduct(true);
+        if (result.isConfirmed) {
+            try {
+                await productService.resetProduct(productId);
+                toast.success('Khôi phục sản phẩm thành công');
+                fetchProducts(); // Cập nhật lại danh sách sản phẩm
+            } catch (error) {
+                toast.error(`Lỗi khi khôi phục sản phẩm: ${error.response?.data?.message || error.message}`);
+            }
+        }
     };
 
-    const resetFormFields = () => {
-        setCode("");
-        setName("");
-        setDescription("");
-        setPrice("");
-        setQuantity(0);
-        setWeight("");
-        setStatus(1);
-        setImage(null);
-        setImagePreview(null);
-        setBrand("");
-        setCategory("");
+    // Hàm chuyển đến trang update
+    const handleOpenModelUpdateProduct = (product) => {
+        navigate(`/admin/product-update/${product.id}`); // Chuyển hướng đến trang cập nhật
     };
 
 
-    // Replace your fetchProducts function with:
+    // load data
     const fetchProducts = async () => {
         try {
             const response = await productService.getAllProducts();
@@ -243,18 +179,9 @@ const Products = () => {
         window.scrollTo(0, 0);
     }, []);
 
-    const [openModelAddProduct, setModelAddProduct] = useState(false);
-    const [openModelUpdateProduct, setOpenModelUpdateProduct] = useState(false);
     const [openModelImport, setModelImport] = useState(false);
     const handleOpenModelImport = () => setModelImport(true);
-    const handleOpenModelAddProduct = () => setModelAddProduct(true);
-    const handleCloseModelAddAndUpdateProduct = () => {
-        setModelImport(false);
-        setModelAddProduct(false);
-        setOpenModelUpdateProduct(false);
-        setId(null); // Reset ID sản phẩm
-        resetFormFields(); // Reset form fields when closing
-    };
+
 
     return (
         <>
@@ -268,13 +195,7 @@ const Products = () => {
                         <div className="col-md-3">
                             <h3 className="hd">Danh sách sản phẩm</h3>
                         </div>
-
-                        <div className="col-md-3">
-                            <Button
-                                className="btn-blue btn-lg btn-big"
-                                onClick={handleOpenModelAddProduct} >Thêm sản phẩm mới</Button>
-                        </div>
-
+                
                         <div className="col-md-3">
                             <Button
                                 className="btn-blue btn-lg btn-big"
@@ -309,21 +230,21 @@ const Products = () => {
                         <div className="col-md-3">
                             <h4>Hiển thị theo danh mục</h4>
                             <FormControl size="small" className="w-100">
-                                <Select        
+                                <Select
                                     displayEmpty
                                     inputProps={{ "aria-label": "Without label" }}
                                     className="w-100"
                                 >
                                     <MenuItem value="">
                                         <em>None</em>
-                                    </MenuItem>                                  
+                                    </MenuItem>
                                 </Select>
                             </FormControl>
                         </div>
 
                         <div className="col-md-3">
                             <h4>Hiển thị theo Thương hiệu</h4>
-                           
+
                         </div>
                     </div>
 
@@ -379,9 +300,20 @@ const Products = () => {
                                                 >
                                                     <FaPencilAlt />
                                                 </Button>
-                                                <Button className="error" color="error">
-                                                    <MdDelete />
-                                                </Button>
+
+                                                {product.status === 1 ? (
+                                                    <Button className="error" color="error"
+                                                        onClick={() => handleDeleteProduct(product.id)}>
+                                                        <MdDelete />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        className="reset-button"
+                                                        onClick={() => handleResetProduct(product.id)}
+                                                    >
+                                                        <RxReset />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -469,7 +401,6 @@ const Products = () => {
                                     <div className="col mt-2">
                                         <Button
                                             className="btn-big btn-close"
-                                            onClick={handleCloseModelAddAndUpdateProduct}
                                         >
                                             Bỏ qua
                                         </Button>
