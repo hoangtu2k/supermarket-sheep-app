@@ -17,7 +17,7 @@ import googleIcon from "../assets/images/googleIcon.png";
 // Contexts & Utils
 import { AuthContext } from "../context/AuthProvider";
 import { MyContext } from "../App";
-import axios from "../utils/axiosConfig";
+import axios from "../services/axiosConfig";
 
 
 const Login = () => {
