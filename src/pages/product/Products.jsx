@@ -98,11 +98,11 @@ const Products = () => {
     // Phân trang
     const totalResults = filteredProducts.length;
     const totalPages = Math.ceil(totalResults / resultsPerPage);
-    const indexOfLastUser = currentPage * resultsPerPage;
-    const indexOfFirstUser = indexOfLastUser - resultsPerPage;
-    const currentUsers = filteredProducts.slice(
-        indexOfFirstUser,
-        indexOfLastUser
+    const indexOfLastProduct = currentPage * resultsPerPage;
+    const indexOfFirstProduct = indexOfLastProduct - resultsPerPage;
+    const currentProducts = filteredProducts.slice(
+        indexOfFirstProduct,
+        indexOfLastProduct
     );
 
     // Hàm xử lý thay đổi trang
@@ -261,7 +261,7 @@ const Products = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {currentUsers.map((product) => (
+                                {currentProducts.map((product) => (
                                     <tr key={product.id}>
                                         <td>{product.code}</td>
                                         <td>

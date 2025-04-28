@@ -6,9 +6,10 @@ import Button from "@mui/material/Button";
 
 // Icons
 import { FaAngleRight, FaBell, FaCartArrowDown, FaProductHunt } from "react-icons/fa6";
-import { FaProductHunt as FaProductLegacy } from "react-icons/fa"; // chỉ nếu bạn cần 2 bản khác nhau
+import { FaUserTie } from "react-icons/fa";
 import { MdDashboard, MdMessage } from "react-icons/md";
 import { IoIosSettings, IoMdLogOut } from "react-icons/io";
+import { HiUsers } from "react-icons/hi";
 
 // Context
 import { MyContext } from "../App";
@@ -68,17 +69,52 @@ const Sidebar = () => {
                                   
                     </li>
                     <li>
-                        <Link to="/">
-                            <Button className={`w-100 ${activeTab === 2 ? 'active': ''}`}>
-                                <span className="icon"><FaCartArrowDown /></span>
-                                Đặt hàng
-                                <span className="arrow"><FaAngleRight /></span>
-                            </Button>
-                        </Link>
+                    <Button className={`w-100 ${activeTab === 2 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(2)}>
+                            <span className="icon"><HiUsers /></span>
+                            Giao dịch
+                            <span className="arrow"><FaAngleRight /></span>
+                        </Button>
+
+                        <div className={`submenuWrapper ${activeTab === 2 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
+                            <ul className="submenu">
+                                <li><Link to="/admin/users">Đặt hàng</Link></li>
+                                <li><Link to="/admin/supplier">Nhập hàng</Link></li>
+                            </ul>
+                        </div>
                     </li>
                     <li>
+                        <Button className={`w-100 ${activeTab === 3 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(3)}>
+                            <span className="icon"><HiUsers /></span>
+                            Nhân viên
+                            <span className="arrow"><FaAngleRight /></span>
+                        </Button>
+
+                        <div className={`submenuWrapper ${activeTab === 3 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
+                            <ul className="submenu">
+                                <li><Link to="/admin/users">Danh sách nhân viên</Link></li>
+                                <li><Link to="/">Lịch làm việc</Link></li>
+                                <li><Link to="/">Thiết lập nhân viên</Link></li>
+                            </ul>
+                        </div>
+                    </li>
+                    <li>
+                        <Button className={`w-100 ${activeTab === 4 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(4)}>
+                            <span className="icon"><FaUserTie /></span>
+                            Đối tác
+                            <span className="arrow"><FaAngleRight /></span>
+                        </Button>
+
+                        <div className={`submenuWrapper ${activeTab === 4 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
+                            <ul className="submenu">
+                                <li><Link to="/admin/customers">Khách hàng</Link></li>
+                                <li><Link to="/admin/supplier">Nhà cung cáp</Link></li>
+                            </ul>
+                        </div>
+                    </li>
+
+                    <li>
                         <Link to="/">
-                            <Button className={`w-100 ${activeTab === 3 ? 'active': ''}`}>
+                            <Button className={`w-100 ${activeTab === 5 ? 'active': ''}`}>
                                 <span className="icon"><MdMessage /></span>
                                 Tin nhắn
                                 <span className="arrow"><FaAngleRight /></span>
@@ -87,7 +123,7 @@ const Sidebar = () => {
                     </li>
                     <li>
                         <Link to="/">
-                            <Button className={`w-100 ${activeTab === 4 ? 'active': ''}`}>
+                            <Button className={`w-100 ${activeTab === 6 ? 'active': ''}`}>
                                 <span className="icon"><FaBell /></span>
                                 Thông báo
                                 <span className="arrow"><FaAngleRight /></span>
@@ -96,7 +132,7 @@ const Sidebar = () => {
                     </li>
                     <li>
                         <Link to="/">
-                            <Button className={`w-100 ${activeTab === 5 ? 'active': ''}`}>
+                            <Button className={`w-100 ${activeTab === 7 ? 'active': ''}`}>
                                 <span className="icon"><IoIosSettings /></span>
                                 Cài đặt
                                 <span className="arrow"><FaAngleRight /></span>
