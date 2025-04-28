@@ -46,8 +46,7 @@ const Sidebar = () => {
                         <Link to="/admin/dashboard">
                             <Button className={`w-100 ${activeTab === 0 ? 'active': ''}`}>
                                 <span className="icon"><MdDashboard /></span>
-                                Tổng quan
-                                <span className="arrow"><FaAngleRight /></span>
+                                Tổng quan                            
                             </Button>
                         </Link>
                     </li>
@@ -122,7 +121,7 @@ const Sidebar = () => {
                         </Link>
                     </li>
                     <li>
-                        <Link to="/">
+                        <Link to="/admin/403">
                             <Button className={`w-100 ${activeTab === 6 ? 'active': ''}`}>
                                 <span className="icon"><FaBell /></span>
                                 Thông báo

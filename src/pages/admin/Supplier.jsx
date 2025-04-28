@@ -22,7 +22,7 @@ const style = {
     left: "50%",
     transform: "translate(-50%, -50%)",
     width: "90%", // Chiều rộng phản hồi
-    maxWidth: 800,
+    maxWidth: 1000,
     maxHeight: "80vh", // Chiều cao tối đa
     overflowY: "auto", // Cho phép cuộn
     bgcolor: "background.paper",
@@ -445,7 +445,7 @@ const Supplier = () => {
                                 <div className="col-md-12">
                                     <div className="card p-2 mt-0">
                                         <div className="row">
-                                            <div className="col-md-7">
+                                            <div className="col-md-12">
                                                 <div className="row ">
                                                     <div className="col">
                                                         <div className="form-group">
@@ -569,7 +569,7 @@ const Supplier = () => {
                                 <div className="col-md-12">
                                     <div className="card p-2 mt-0">
                                         <div className="row">
-                                            <div className="col-md-7">
+                                            <div className="col-md-12">
                                                 <div className="row ">
                                                     <div className="col">
                                                         <div className="form-group">
