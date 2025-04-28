@@ -1,10 +1,10 @@
-import Login from "../pages/Login";
-import SignUp from "../pages/Signup";
-import Dashboard from "../pages/Dashboard";
-import Products from "../pages/product/Products";
-import ProductUpload from "../pages/product/ProductUpload";
-import ProductUpdate from "../pages/product/ProductUpdate";
-import Supplier from "../pages/Supplier";
+import Login from "../pages/admin/Login";
+import SignUp from "../pages/admin/Signup";
+import Dashboard from "../pages/admin/Dashboard";
+import Products from "../pages/admin/product/Products";
+import ProductUpload from "../pages/admin/product/ProductUpload";
+import ProductUpdate from "../pages/admin/product/ProductUpdate";
+import Supplier from "../pages/admin/Supplier";
 
 const publicRouters = [
 

@@ -10,14 +10,14 @@ import { IoMdEye, IoMdEyeOff } from "react-icons/io";
 import { Button } from "@mui/material";
 
 // Assets
-import Logo from "../assets/images/logo.png";
-import patern from "../assets/images/patern.jpg";
-import googleIcon from "../assets/images/googleIcon.png";
+import Logo from "../../assets/images/logo.png";
+import patern from "../../assets/images/patern.jpg";
+import googleIcon from "../../assets/images/googleIcon.png";
 
 // Contexts & Utils
-import { AuthContext } from "../context/AuthProvider";
-import { MyContext } from "../App";
-import axios from "../services/axiosConfig";
+import { AuthContext } from "../../context/AuthProvider";
+import { MyContext } from "../../App";
+import axios from "../../services/axiosConfig";
 
 
 const Login = () => {

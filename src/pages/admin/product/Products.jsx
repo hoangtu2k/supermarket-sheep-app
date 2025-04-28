@@ -1,7 +1,6 @@
 
 import React, { useContext, useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { MyContext } from "../../App";
 import { MdDelete } from "react-icons/md";
 import { FaEye, FaPencilAlt } from "react-icons/fa";
 import { RxReset } from "react-icons/rx";
@@ -15,8 +14,8 @@ import Modal from "@mui/material/Modal";
 import Typography from "@mui/material/Typography";
 import Swal from "sweetalert2";
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
-
-import { productService } from "../../services/productService";
+import { MyContext } from "../../../App";
+import { productService } from "../../../services/productService";
 
 
 const style = {
@@ -75,7 +74,7 @@ const Products = () => {
 
     const context = useContext(MyContext);
 
-    const [showByStatus, setShowByStatus] = useState("");
+    const [showByStatus, setShowByStatus] = useState(1);
     const [showBysetCatBy, setCatBy] = useState("");
     const [showByBrandBy, setBrandBy] = useState("");
 
@@ -195,7 +194,7 @@ const Products = () => {
                         <div className="col-md-3">
                             <h3 className="hd">Danh sách sản phẩm</h3>
                         </div>
-                
+
                         <div className="col-md-3">
                             <Button
                                 className="btn-blue btn-lg btn-big"

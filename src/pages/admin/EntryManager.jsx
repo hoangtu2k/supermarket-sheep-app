@@ -4,7 +4,7 @@ import {
   addProductToEntry,
   confirmEntry,
   fetchEntryFormDetails,
-} from "../services/importedGoodsService";
+} from "../../services/importedGoodsService";
 
 function EntryManager() {
   const [supplierId, setSupplierId] = useState("");

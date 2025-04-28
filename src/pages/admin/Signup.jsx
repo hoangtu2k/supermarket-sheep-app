@@ -13,12 +13,12 @@ import { FaUserCircle } from "react-icons/fa";
 import { IoShieldCheckmarkSharp } from "react-icons/io5";
 
 // Assets
-import Logo from "../assets/images/logo.png";
-import patern from "../assets/images/patern.jpg";
-import googleIcon from "../assets/images/googleIcon.png";
+import Logo from "../../assets/images/logo.png";
+import patern from "../../assets/images/patern.jpg";
+import googleIcon from "../../assets/images/googleIcon.png";
 
 // Context
-import { MyContext } from "../App";
+import { MyContext } from "../../App";
 
 const SignUp = () => {
   const [inputIndex, setInputIndex] = useState(null);

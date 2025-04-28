@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from 'react-router-dom';
 import Button from "@mui/material/Button";
 import { MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
@@ -7,11 +7,13 @@ import { FaCloudUploadAlt, FaRegImages } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { storage } from "../../services/firebase";
-import { productService } from "../../services/productService";
+import { storage } from "../../../services/firebase";
+import { productService } from "../../../services/productService";
 
-const ProductUpload = () => {
 
+const ProductUpdate = () => {
+
+  const { id } = useParams(); // Lấy id từ URL
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
@@ -23,17 +25,6 @@ const ProductUpload = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const navigate = useNavigate();
-
-  const resetFormFields = () => {
-    setCode("");
-    setName("");
-    setDescription("");
-    setPrice("");
-    setQuantity(0);
-    setWeight("");
-    setImage(null);
-    setImagePreview(null);
-  };
 
   const handleImageChange = (event) => {
     const file = event.target.files[0];
@@ -49,10 +40,52 @@ const ProductUpload = () => {
     setImagePreview(null);
   };
 
-  const handleSubmitProductAdd = async (e) => {
+  // Tải dữ liệu sản phẩm khi component mount
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        const response = await productService.getProductById(id);
+        const product = response.data;
+        setCode(product.code);
+        setName(product.name);
+        setPrice(product.price);
+        setWeight(product.weight);
+        setDescription(product.description);
+        setQuantity(product.quantity);
+        setImagePreview(product.imageUrl); // Hiển thị ảnh đã lưu
+      } catch (error) {
+        Swal.fire({
+          title: 'Lỗi',
+          text: "Không thể tải sản phẩm.",
+          icon: 'error'
+        });
+      }
+    };
+
+    if (id) {
+      fetchProduct();
+    }
+  }, [id]);
+
+
+  const handleSubmitProductUpdate = async (e) => {
     e.preventDefault();
 
     if (isSubmitting) return;
+
+    // Hiển thị hộp thoại xác nhận
+    const result = await Swal.fire({
+      title: 'Xác nhận',
+      text: "Bạn có chắc chắn muốn cập nhật sản phẩm này không?",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Có',
+      cancelButtonText: 'Không'
+    });
+
+    if (!result.isConfirmed) {
+      return; // Nếu người dùng không xác nhận, dừng lại
+    }
 
     setIsSubmitting(true);
 
@@ -66,7 +99,7 @@ const ProductUpload = () => {
         imageUrl = await getDownloadURL(storageRef);
       }
 
-      // Gửi yêu cầu thêm sản phẩm
+      // Gửi yêu cầu cập nhật sản phẩm
       const productData = {
         code,
         name,
@@ -74,50 +107,24 @@ const ProductUpload = () => {
         price: parseFloat(price),
         quantity: parseInt(quantity),
         weight: parseFloat(weight),
-        imageUrl // Thêm URL ảnh vào dữ liệu sản phẩm
+        imageUrl: imageUrl || imagePreview // Sử dụng ảnh đã có nếu không có ảnh mới
       };
 
-      await productService.createProduct(productData);
+      await productService.updateProduct(id, productData);
 
-      // Xác nhận trước khi thêm sản phẩm
-      const result = await Swal.fire({
-        title: 'Xác nhận',
-        text: "Bạn có chắc chắn muốn thêm sản phẩm này không?",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Có',
-        cancelButtonText: 'Không'
+      Swal.fire({
+        title: 'Thành công',
+        text: "Cập nhật sản phẩm thành công.",
+        icon: 'success'
       });
 
-      // Nếu người dùng không xác nhận, dừng lại
-      if (!result.isConfirmed) {
-        return;
-      }
-      resetFormFields();
       navigate('/admin/products'); // Chuyển trang sau khi thành công
     } catch (error) {
-      if (error.response) {
-        console.error("Server error:", error.response.data);
-        Swal.fire({
-          title: 'Lỗi',
-          text: error.response.data.message || "Đã có lỗi xảy ra.",
-          icon: 'error'
-        });
-      } else if (error.request) {
-        console.error("No response received:", error.request);
-        Swal.fire({
-          title: 'Lỗi',
-          text: "Không nhận được phản hồi từ máy chủ. Vui lòng thử lại.",
-          icon: 'error'
-        });
-      } else {
-        console.error("Error:", error.message);
-        Swal.fire({
-          title: 'Lỗi',
-          text: error.message,
-          icon: 'error'
-        });
-      }
+      Swal.fire({
+        title: 'Lỗi',
+        text: error.response?.data?.message || "Đã có lỗi xảy ra.",
+        icon: 'error'
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -139,7 +146,7 @@ const ProductUpload = () => {
 
 
 
-        <form className="form" onSubmit={handleSubmitProductAdd}>
+        <form className="form" onSubmit={handleSubmitProductUpdate}>
 
           <div className="row">
             <div className="col-md-6">
@@ -311,7 +318,7 @@ const ProductUpload = () => {
                     <Button type="reset" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; Làm mới</Button>
                   </div>
                   <div className="col-md-7">
-                    <Button type="submit" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; XUẤT BẢN VÀ XEM</Button>
+                    <Button type="submit" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; CẬP NHẬT VÀ XEM</Button>
                   </div>
                 </div>
 
@@ -322,14 +329,9 @@ const ProductUpload = () => {
 
         </form>
 
-
-
-
-
-
       </div>
     </>
   );
 };
 
-export default ProductUpload;
+export default ProductUpdate;
