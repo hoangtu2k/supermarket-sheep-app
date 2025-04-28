@@ -15,6 +15,7 @@ import Typography from "@mui/material/Typography";
 import Swal from "sweetalert2";
 
 import { userService } from "../../services/userService";
+import { roleService } from "../../services/roleService";
 
 const style = {
     position: "absolute",
@@ -22,8 +23,8 @@ const style = {
     left: "50%",
     transform: "translate(-50%, -50%)",
     width: "90%", // Chiều rộng phản hồi
-    maxWidth: 800,
-    maxHeight: "80vh", // Chiều cao tối đa
+    maxWidth: 1100,
+    maxHeight: "85vh", // Chiều cao tối đa
     overflowY: "auto", // Cho phép cuộn
     bgcolor: "background.paper",
     border: "2px solid #000",
@@ -36,10 +37,13 @@ const User = () => {
     const context = useContext(MyContext);
 
     const [id, setId] = useState(null);
-    const [code, setCode] = useState("");
     const [name, setName] = useState("");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
+    const [rePassword, setRePassword] = useState("");
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
+    const [dateOfBirth, setDateOfBirth] = useState("");
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,6 +52,36 @@ const User = () => {
     const [users, setUsers] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const resultsPerPage = 5;
+
+    const [role, setRole] = useState("");
+    const [roleList, setRoleList] = useState([]);
+
+    const [errorMessage, setErrorMessage] = useState("");
+
+    const validateUserForm = () => {
+        if (!name.trim()) {
+            setErrorMessage("Vui lòng nhập tên người dùng.");
+            return false;
+        }
+        if (!username.trim()) {
+            setErrorMessage("Vui lòng nhập tên đăng nhập.");
+            return false;
+        }
+        if (password !== rePassword) {
+            setErrorMessage("Mật khẩu nhập lại không khớp.");
+            return false;
+        }
+        if (!role) {
+            setErrorMessage("Vui lòng chọn vai trò.");
+            return false;
+        }
+        setErrorMessage(""); // Không lỗi
+        return true;
+    };
+
+    const handleChangeRole = (event) => {
+        setRole(event.target.value);
+    };
 
     // Lọc danh sách người dùng theo trạng thái, thương hiệu và danh mục
     const filteredUsers = users.filter((user) => {
@@ -84,36 +118,58 @@ const User = () => {
         }
     };
 
+    // Load data role
+    const fetchRole = async () => {
+        try {
+            const response = await roleService.getAllRole();
+            const filteredRoles = response.data.filter(role => role.name?.toLowerCase() !== "admin"); // 👈 Lọc bỏ Admin
+            setRoleList(filteredRoles);
+        } catch (error) {
+            toast.error(
+                "Error fetching fetchRole: " + (error.response?.data?.message || error.message)
+            );
+        }
+    };
+
+
     useEffect(() => {
+        fetchRole();
         fetchUser();
         context.setisHideSidebarAndHeader(false);
         window.scrollTo(0, 0);
     }, []);
 
     const resetFormFields = () => {
-        setCode("");
         setName("");
+        setUsername("");
+        setPassword("");
+        setRePassword("");
         setPhone("");
         setEmail("");
+        setDateOfBirth("");
+        setRole("");
     };
 
+    // Hàm thêm người dùng
     const handleSubmitAddUser = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
+
+        // Reset lỗi trước
+        setErrorMessage("");
+
+        if (!validateUserForm()) {
+            return; // Nếu validate fail thì dừng lại
+        }
+
+        // Nếu validate OK → tiếp tục submit
         setIsSubmitting(true);
         try {
-            // Gửi yêu cầu thêm người dùng
-            const userData = {
-                code,
-                name,
-                phone,
-                email,
-            };
+            const userData = { name, username, password, rePassword, phone, email, dateOfBirth, roleId: role };
             await userService.createUser(userData);
 
             handleCloseModelAddAndUpdateUser();
 
-            // Xác nhận trước khi thêm người dùng
             const result = await Swal.fire({
                 title: 'Xác nhận',
                 text: "Bạn có chắc chắn muốn thêm người dùng này không?",
@@ -123,60 +179,58 @@ const User = () => {
                 cancelButtonText: 'Không'
             });
 
-            // Nếu người dùng không xác nhận, dừng lại
             if (!result.isConfirmed) {
                 return;
             }
 
-            // Show success message
             Swal.fire({
                 title: 'Thành công',
                 text: "Thêm thành công!",
                 icon: 'success',
                 confirmButtonText: 'OK'
             });
-            // Cập nhật danh sách người dùng và đặt lại form
+
             fetchUser();
             resetFormFields();
         } catch (error) {
-            if (error.response) {
-                console.error("Server error:", error.response.data);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: error.response.data.message || "Đã có lỗi xảy ra.",
-                    icon: 'error'
-                });
-            } else if (error.request) {
-                console.error("No response received:", error.request);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: "Không nhận được phản hồi từ máy chủ. Vui lòng thử lại.",
-                    icon: 'error'
-                });
-            } else {
-                console.error("Error:", error.message);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: error.message,
-                    icon: 'error'
-                });
-            }
+            handleCloseModelAddAndUpdateUser();
+            console.error(error);
+            Swal.fire({
+                title: 'Lỗi',
+                text: error.response?.data?.message || "Đã có lỗi xảy ra.",
+                icon: 'error'
+            });
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    // Hàm sửa người dùng
     const handleSubmitUpdateUser = async (e) => {
+
         e.preventDefault();
+
         if (isSubmitting) return;
+
+        // Reset lỗi trước
+        setErrorMessage("");
+
+        if (!validateUserForm()) {
+            return; // Nếu validate fail thì dừng lại
+        }
+
         setIsSubmitting(true);
         try {
             // Gửi yêu cầu sửa người dùng
             const userData = {
-                code,
                 name,
+                username,
+                password,
+                rePassword,
                 phone,
                 email,
+                dateOfBirth,
+                roleId: role,
             };
             await userService.updateUser(id, userData);
 
@@ -208,28 +262,13 @@ const User = () => {
             fetchUser();
             resetFormFields();
         } catch (error) {
-            if (error.response) {
-                console.error("Server error:", error.response.data);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: error.response.data.message || "Đã có lỗi xảy ra.",
-                    icon: 'error'
-                });
-            } else if (error.request) {
-                console.error("No response received:", error.request);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: "Không nhận được phản hồi từ máy chủ. Vui lòng thử lại.",
-                    icon: 'error'
-                });
-            } else {
-                console.error("Error:", error.message);
-                Swal.fire({
-                    title: 'Lỗi',
-                    text: error.message,
-                    icon: 'error'
-                });
-            }
+            handleCloseModelAddAndUpdateUser();
+            console.error(error);
+            Swal.fire({
+                title: 'Lỗi',
+                text: error.response?.data?.message || "Đã có lỗi xảy ra.",
+                icon: 'error'
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -278,10 +317,19 @@ const User = () => {
     // Hàm update theo id
     const handleOpenModelUpdateUser = (user) => {
         setId(user.id);
-        setCode(user.code);
         setName(user.name);
+        setUsername(user.username);
         setPhone(user.phone);
         setEmail(user.email);
+        if (user.dateOfBirth) {
+            const dob = new Date(user.dateOfBirth);
+            const formattedDate = dob.toISOString().split('T')[0]; // yyyy-MM-dd
+            setDateOfBirth(formattedDate);
+        } else {
+            setDateOfBirth("");
+        }
+
+        setRole(user.role?.id || ""); // 👈 lấy role.id nếu có, còn không thì để rỗng
         setOpenModelUpdateUser(true);
     };
 
@@ -346,11 +394,12 @@ const User = () => {
                         <table className="table table-bordered v-align">
                             <thead className="thead-dark">
                                 <tr>
-                                <th>Tên đăng nhập</th>
+                                    <th>Tên đăng nhập</th>
                                     <th>Tên người dùng</th>
                                     <th>Điện thoại</th>
                                     <th>Ngày sinh</th>
                                     <th>Email</th>
+                                    <th>Vai trò</th>
                                     <th>Trạng thái</th>
                                     <th>Hành động</th>
                                 </tr>
@@ -361,8 +410,14 @@ const User = () => {
                                         <td>{user.username}</td>
                                         <td>{user.name}</td>
                                         <td>{user.phone}</td>
-                                        <td>{user.dateOfBirth}</td>
+                                        <td>
+                                            {user.dateOfBirth
+                                                ? new Date(user.dateOfBirth).toLocaleDateString('vi-VN')
+                                                : ""}
+                                        </td>
+
                                         <td>{user.email}</td>
+                                        <td>{user.role?.name || "Không có quyền"}</td>
                                         <td>
                                             {user.status === 1
                                                 ? "Đang hoạt động"
@@ -403,6 +458,7 @@ const User = () => {
                                             </div>
                                         </td>
                                     </tr>
+
                                 ))}
                             </tbody>
                         </table>
@@ -437,6 +493,10 @@ const User = () => {
                     >
                         Thêm người dùng
                     </Typography>
+
+                    <span className="error text-center">{errorMessage}</span>
+
+
                     <Typography
                         id="keep-mounted-modal-description"
                         component="span"
@@ -450,21 +510,6 @@ const User = () => {
                                             <div className="col-md-7">
                                                 <div className="row ">
                                                     <div className="col">
-                                                        <div className="form-group">
-                                                            <div className="row">
-                                                                <div className="col-md-3">
-                                                                    <h6 className="mt-2">Mã người dùng</h6>
-                                                                </div>
-                                                                <div className="col-md-9">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Mã người dùng"
-                                                                        value={code || ""}
-                                                                        onChange={(e) => setCode(e.target.value)}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
 
                                                         <div className="form-group">
                                                             <div className="row">
@@ -480,6 +525,59 @@ const User = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Tên đăng nhập</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={username || ""}
+                                                                        onChange={(e) => setUsername(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Mật khẩu</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={password || ""}
+                                                                        onChange={(e) => setPassword(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Nhập lại mật khẩu</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={rePassword || ""}
+                                                                        onChange={(e) => setRePassword(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="col-md-5">
+                                                <div className="row">
+                                                    <div className="col">
 
                                                         <div className="form-group">
                                                             <div className="row">
@@ -511,10 +609,44 @@ const User = () => {
                                                             </div>
                                                         </div>
 
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Ngày sinh</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="date"
+                                                                        value={dateOfBirth || ""}
+                                                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <h6 className="form-select-title">Vai trò</h6>
+
+                                                        <Select
+                                                            value={role || ""}
+                                                            onChange={handleChangeRole}
+                                                            displayEmpty
+                                                            inputProps={{ "aria-label": "Without label" }}
+                                                            className="w-100"
+                                                        >
+                                                            <MenuItem value="">
+                                                                <em>None</em>
+                                                            </MenuItem>
+                                                            {roleList.map((rol) => (
+                                                                <MenuItem key={rol.id} value={rol.id}>
+                                                                    {rol.name}
+                                                                </MenuItem>
+                                                            ))}
+                                                        </Select>
+
                                                     </div>
                                                 </div>
                                             </div>
-
                                         </div>
                                     </div>
                                 </div>
@@ -561,6 +693,9 @@ const User = () => {
                     >
                         Sửa người dùng
                     </Typography>
+
+                    <span className="error text-center">{errorMessage}</span>
+
                     <Typography
                         id="keep-mounted-modal-description"
                         component="span"
@@ -574,21 +709,6 @@ const User = () => {
                                             <div className="col-md-7">
                                                 <div className="row ">
                                                     <div className="col">
-                                                        <div className="form-group">
-                                                            <div className="row">
-                                                                <div className="col-md-3">
-                                                                    <h6 className="mt-2">Mã người dùng</h6>
-                                                                </div>
-                                                                <div className="col-md-9">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Mã người dùng"
-                                                                        value={code || ""}
-                                                                        onChange={(e) => setCode(e.target.value)}
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        </div>
 
                                                         <div className="form-group">
                                                             <div className="row">
@@ -604,6 +724,59 @@ const User = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Tên đăng nhập</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={username || ""}
+                                                                        onChange={(e) => setUsername(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Mật khẩu</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={password || ""}
+                                                                        onChange={(e) => setPassword(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Nhập lại mật khẩu</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="password"
+                                                                        value={rePassword || ""}
+                                                                        onChange={(e) => setRePassword(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="col-md-5">
+                                                <div className="row">
+                                                    <div className="col">
 
                                                         <div className="form-group">
                                                             <div className="row">
@@ -635,10 +808,44 @@ const User = () => {
                                                             </div>
                                                         </div>
 
+                                                        <div className="form-group">
+                                                            <div className="row">
+                                                                <div className="col-md-3">
+                                                                    <h6 className="mt-2">Ngày sinh</h6>
+                                                                </div>
+                                                                <div className="col-md-9">
+                                                                    <input
+                                                                        type="date"
+                                                                        value={dateOfBirth || ""}
+                                                                        onChange={(e) => setDateOfBirth(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+
+                                                        <h6 className="form-select-title">Vai trò</h6>
+
+                                                        <Select
+                                                            value={role || ""}
+                                                            onChange={handleChangeRole}
+                                                            displayEmpty
+                                                            inputProps={{ "aria-label": "Without label" }}
+                                                            className="w-100"
+                                                        >
+                                                            <MenuItem value="">
+                                                                <em>None</em>
+                                                            </MenuItem>
+                                                            {roleList.map((rol) => (
+                                                                <MenuItem key={rol.id} value={rol.id}>
+                                                                    {rol.name}
+                                                                </MenuItem>
+                                                            ))}
+                                                        </Select>
+
                                                     </div>
                                                 </div>
                                             </div>
-
                                         </div>
                                     </div>
                                 </div>
