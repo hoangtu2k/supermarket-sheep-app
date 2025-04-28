@@ -29,7 +29,7 @@ const Header = () => {
   const { user } = useContext(AuthContext); // Lấy thông tin người dùng từ contex
 
   const userName = user?.name || "Tên không xác định";
-  const roleName = user?.roleName || "Chức vụ không xác định";
+  const roleName = user?.role.name || "Chức vụ không xác định";
 
   const [userImage, setUserImage] = useState('');
 
@@ -189,13 +189,13 @@ const Header = () => {
                     className="myAcc d-flex align-items-center"
                     onClick={handleOpenMyAccDrop}
                   >
-                    <div className="userImg">
+                    {/* <div className="userImg">
                       <span className="rounded-circle">
 
-                      <img src={userImage} alt="User Avatar" /> {/* Hiển thị ảnh người dùng */}
+                      <img src={userImage} alt="User Avatar" /> 
                      
                       </span>
-                    </div>
+                    </div> */}
 
                     <div className="userInfo res-hide">
                       <h4>{userName}</h4>

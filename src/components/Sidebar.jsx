@@ -77,7 +77,7 @@ const Sidebar = () => {
 
                         <div className={`submenuWrapper ${activeTab === 2 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
-                                <li><Link to="/admin/users">Đặt hàng</Link></li>
+                                <li><Link to="/admin">Đặt hàng</Link></li>
                                 <li><Link to="/admin/supplier">Nhập hàng</Link></li>
                             </ul>
                         </div>
@@ -91,7 +91,7 @@ const Sidebar = () => {
 
                         <div className={`submenuWrapper ${activeTab === 3 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
-                                <li><Link to="/admin/users">Danh sách nhân viên</Link></li>
+                                <li><Link to="/admin/employee">Danh sách nhân viên</Link></li>
                                 <li><Link to="/">Lịch làm việc</Link></li>
                                 <li><Link to="/">Thiết lập nhân viên</Link></li>
                             </ul>
@@ -106,8 +106,8 @@ const Sidebar = () => {
 
                         <div className={`submenuWrapper ${activeTab === 4 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
-                                <li><Link to="/admin/customers">Khách hàng</Link></li>
-                                <li><Link to="/admin/supplier">Nhà cung cáp</Link></li>
+                                <li><Link to="/admin/customer">Khách hàng</Link></li>
+                                <li><Link to="/admin/supplier">Nhà cung cấp</Link></li>
                             </ul>
                         </div>
                     </li>
@@ -129,15 +129,20 @@ const Sidebar = () => {
                                 <span className="arrow"><FaAngleRight /></span>
                             </Button>
                         </Link>
-                    </li>
+                    </li>       
                     <li>
-                        <Link to="/">
-                            <Button className={`w-100 ${activeTab === 7 ? 'active': ''}`}>
-                                <span className="icon"><IoIosSettings /></span>
-                                Cài đặt
-                                <span className="arrow"><FaAngleRight /></span>
-                            </Button>
-                        </Link>
+                        <Button className={`w-100 ${activeTab === 7 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(7)}>
+                        <span className="icon"><IoIosSettings /></span>
+                            Cài đặt
+                            <span className="arrow"><FaAngleRight /></span>
+                        </Button>
+
+                        <div className={`submenuWrapper ${activeTab === 7 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
+                            <ul className="submenu">
+                                <li><Link to="/admin/users">Quản lý người dùng</Link></li>
+                                <li><Link to="/admin/history">Lịch sử thao tác</Link></li>
+                            </ul>
+                        </div>
                     </li>
 
                 </ul>
