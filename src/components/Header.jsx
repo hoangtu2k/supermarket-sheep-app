@@ -112,6 +112,7 @@ const Header = () => {
               </Button>
 
               <div className="dropdownWrapper position-relative">
+
                 <Button
                   className="rounded-circle mr-3"
                   onClick={handleOpenNotificationsDrop}
@@ -119,12 +120,15 @@ const Header = () => {
                   <FaRegBell />
                 </Button>
 
-                <Button
-                  className="rounded-circle mr-3 rounded-circle-nav"
-                  onClick={() => context.openNav()}
-                >
-                  <IoMenu />
-                </Button>
+                {context.windowWidth < 992 && (
+                  <Button
+                    className="rounded-circle mr-3 rounded-circle-nav"
+                    onClick={() => context.openNav()}
+                  >
+                    <IoMenu />
+                  </Button>
+
+                )}
 
                 <Menu
                   anchorEl={isOpenNotificationsDrop}
@@ -175,6 +179,7 @@ const Header = () => {
                     </Button>
                   </div>
                 </Menu>
+                
               </div>
 
               {context.isLogin !== true ? (
@@ -241,7 +246,7 @@ const Header = () => {
                   >
                     <MenuItem onClick={handleCloseMyAccDrop}>
                       <ListItemIcon>
-                      <FaUser fontSize="small"/>
+                        <FaUser fontSize="small" />
                       </ListItemIcon>
                       Tài khoản của tôi
                     </MenuItem>
@@ -260,7 +265,7 @@ const Header = () => {
                   </Menu>
                 </div>
               )}
-              
+
             </div>
           </div>
         </div>

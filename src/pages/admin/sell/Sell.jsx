@@ -12,6 +12,7 @@ const Sell = () => {
   const context = useContext(MyContext); // cần lấy context
   const { user } = useContext(AuthContext); // Lấy thông tin người dùng từ contex
   const { logout } = useContext(AuthContext);
+  const [themeMode, setThemeMode] = useState(true);
 
   // ========================= State =========================
   const [searchCustomer, setSearchCustomer] = useState('');
@@ -27,7 +28,6 @@ const Sell = () => {
   ]);
 
   const cashSuggestions = [10000, 20000, 50000, 100000, 200000, 500000];
-
 
   // ===================== Sự kiện ===================== 
   const open = Boolean(anchorEl);
@@ -109,8 +109,16 @@ const Sell = () => {
     );
   });
 
+
   // ===================== useEffect =====================
   useEffect(() => {
+    // remove dark mode 
+    if (themeMode === true) {
+      document.body.classList.remove("dark");
+      document.body.classList.add("light");
+      localStorage.setItem("themeMode", "light");
+    }
+
     // Cập nhật danh sách khách hàng mẫu (nếu sau này dùng API thì bỏ phần này)
     setCustomers([
       { id: 1, name: "Nguyễn Văn A", phone: "0901234567" },
@@ -151,7 +159,7 @@ const Sell = () => {
       clearInterval(timer);
       context.setisHideSidebarAndHeader(false);
     };
-  }, [context, user]); // thêm 'user' vào dependency để cập nhật khi user thay đổi
+  }, [context, user, themeMode]); // thêm 'user' vào dependency để cập nhật khi user thay đổi
 
 
   return (
@@ -168,13 +176,17 @@ const Sell = () => {
 
           {/* Nút Hóa đơn với nút xóa nhỏ */}
           <div className="position-relative mr-2">
-            <button 
+            <button
               className="btn btn-light"
               style={{ width: '130px', textAlign: 'left', paddingLeft: '1rem' }}>
               Hóa đơn 20
             </button>
 
             <button
+              onClick={(e) => {
+                e.stopPropagation(); // Ngăn sự kiện lan ra nút "Hóa đơn"
+                console.log("Click Xóa hóa đơn");
+              }}
               className="btn btn-sm btn-danger position-absolute"
               style={{
                 top: '9px',
@@ -233,14 +245,14 @@ const Sell = () => {
             transformOrigin={{ horizontal: "right", vertical: "top" }}
             anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
           >
-            <MenuItem>
+            <MenuItem onClick={handleGoToAdmin}>
               <ListItemIcon>
                 <FaUser fontSize="small" />
               </ListItemIcon>
               Quản lý
             </MenuItem>
 
-            <MenuItem>
+            <MenuItem onClick={handleLogout}>
               <ListItemIcon>
                 <Logout fontSize="small" />
               </ListItemIcon>
