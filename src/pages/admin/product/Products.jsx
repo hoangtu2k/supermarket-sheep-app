@@ -17,23 +17,6 @@ import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { MyContext } from "../../../App";
 import { productService } from "../../../services/productService";
 
-
-const style = {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    width: "90%", // Chiều rộng phản hồi
-    maxWidth: 1000,
-    maxHeight: "80vh", // Chiều cao tối đa
-    overflowY: "auto", // Cho phép cuộn
-    bgcolor: "background.paper",
-    border: "2px solid #000",
-    boxShadow: 24,
-    p: 4,
-    borderRadius: "8px",
-};
-
 const styleImport = {
     position: "absolute",
     top: "50%",

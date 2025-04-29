@@ -1,4 +1,5 @@
 import Button from "@mui/material/Button";
+import Box from "@mui/material/Box"; // <-- import thêm Box
 import { HiDotsVertical } from "react-icons/hi";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
@@ -19,10 +20,14 @@ const DashboardBox = (props) => {
   };
 
   return (
-    <Button
+    <Box
       className="dashboardBox"
-      style={{
+      sx={{
         backgroundImage: `linear-gradient(to right, ${props.color?.[0]} , ${props.color?.[1]})`,
+        p: 2, // padding đẹp hơn
+        borderRadius: 2,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       {props.grow === true ? (
@@ -42,11 +47,7 @@ const DashboardBox = (props) => {
         </div>
 
         <div className="ml-auto">
-          {props.icon ? (
-            <span className="icon">{props.icon ? props.icon : ""}</span>
-          ) : (
-            ""
-          )}
+          {props.icon && <span className="icon">{props.icon}</span>}
         </div>
       </div>
 
@@ -77,7 +78,7 @@ const DashboardBox = (props) => {
               <IoIosTimer /> Last Day
             </MenuItem>
             <MenuItem onClick={handleClose}>
-              <IoIosTimer /> Last Weel
+              <IoIosTimer /> Last Week
             </MenuItem>
             <MenuItem onClick={handleClose}>
               <IoIosTimer /> Last Month
@@ -88,7 +89,7 @@ const DashboardBox = (props) => {
           </Menu>
         </div>
       </div>
-    </Button>
+    </Box>
   );
 };
 
