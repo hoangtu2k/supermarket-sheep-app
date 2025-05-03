@@ -28,7 +28,7 @@ const Header = () => {
 
   const { user } = useContext(AuthContext); // Lấy thông tin người dùng từ contex
 
-  const userName = user?.name || "Tên không xác định";
+  const userName = user?.username || "Tên không xác định";
   const roleName = user?.role.name || "Chức vụ không xác định";
 
   const [userImage, setUserImage] = useState('');

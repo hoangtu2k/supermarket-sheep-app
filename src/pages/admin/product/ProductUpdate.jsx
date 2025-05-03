@@ -10,6 +10,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
 
+import axios from "../../../services/axiosConfig";
+
 
 const ProductUpdate = () => {
 
@@ -20,24 +22,128 @@ const ProductUpdate = () => {
   const [weight, setWeight] = useState("");
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState(0);
-  const [image, setImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+
+  const [images, setImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState({
+    main: [],
+    additional: [],
+    featured: [],
+    secondary: [],
+  });
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const navigate = useNavigate();
 
-  const handleImageChange = (event) => {
+  const handleMainImageChange = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      const previewUrl = URL.createObjectURL(file);
-      setImage(file);
-      setImagePreview(previewUrl);
-    }
+    const previewUrl = URL.createObjectURL(file);
+
+    console.log("Main Image:", { file, url: previewUrl });
+
+    setImages((prevImages) => [
+      { file, main: true, featured: false, secondary: false },
+      ...prevImages.filter((img) => !img.main),
+    ]);
+
+    setImagePreviews((prevPreviews) => ({
+      main: [
+        { url: previewUrl, main: true, featured: false, secondary: false },
+      ],
+      additional: prevPreviews.additional,
+      featured: prevPreviews.featured,
+      secondary: prevPreviews.secondary,
+    }));
   };
 
-  const removeImage = () => {
-    setImage(null);
-    setImagePreview(null);
+  const handleAdditionalImagesChange = (event) => {
+    const files = Array.from(event.target.files);
+    const newImages = files.map((file) => ({
+      file,
+      main: false,
+      featured: false,
+    }));
+    const newImagePreviews = files.map((file) => ({
+      url: URL.createObjectURL(file),
+      main: false,
+      featured: false,
+    }));
+
+    console.log("Additional Images:", newImages, newImagePreviews);
+
+    setImages((prevImages) => [...prevImages, ...newImages]);
+    setImagePreviews((prevPreviews) => ({
+      ...prevPreviews,
+      additional: [...prevPreviews.additional, ...newImagePreviews],
+    }));
+  };
+
+  const handleFeaturedImagesChange = (event) => {
+    const files = Array.from(event.target.files);
+    const newImages = files.map((file) => ({
+      file,
+      main: false,
+      featured: true,
+    }));
+    const newImagePreviews = files.map((file) => ({
+      url: URL.createObjectURL(file),
+      main: false,
+      featured: true,
+    }));
+
+    console.log("Featured Images:", newImages, newImagePreviews);
+
+    setImages((prev) => [...prev, ...newImages]);
+    setImagePreviews((prev) => ({
+      ...prev,
+      featured: [...prev.featured, ...newImagePreviews],
+    }));
+  };
+
+  const handleSecondaryImagesChange = (event) => {
+    const files = Array.from(event.target.files);
+    const newImages = files.map((file) => ({
+      file,
+      main: false,
+      secondary: true,
+    }));
+    const newImagePreviews = files.map((file) => ({
+      url: URL.createObjectURL(file),
+      main: false,
+      secondary: true,
+    }));
+
+    console.log("Secondary Images:", newImages, newImagePreviews);
+
+    setImages((prev) => [...prev, ...newImages]);
+    setImagePreviews((prev) => ({
+      ...prev,
+      secondary: [...prev.secondary, ...newImagePreviews],
+    }));
+  };
+
+  const removeImage = (type, index) => {
+    if (type === "main") {
+      setImagePreviews((prev) => ({
+        ...prev,
+        main: prev.main.filter((_, i) => i !== index),
+      }));
+    } else if (type === "additional") {
+      setImagePreviews((prev) => ({
+        ...prev,
+        additional: prev.additional.filter((_, i) => i !== index),
+      }));
+    } else if (type === "featured") {
+      setImagePreviews((prev) => ({
+        ...prev,
+        featured: prev.featured.filter((_, i) => i !== index),
+      }));
+    } else if (type === "secondary") {
+      setImagePreviews((prev) => ({
+        ...prev,
+        secondary: prev.secondary.filter((_, i) => i !== index),
+      }));
+    }
   };
 
   // Tải dữ liệu sản phẩm khi component mount
@@ -46,13 +152,31 @@ const ProductUpdate = () => {
       try {
         const response = await productService.getProductById(id);
         const product = response.data;
+
         setCode(product.code);
         setName(product.name);
         setPrice(product.price);
         setWeight(product.weight);
         setDescription(product.description);
         setQuantity(product.quantity);
-        setImagePreview(product.imageUrl); // Hiển thị ảnh đã lưu
+
+        // Xử lý ảnh
+        const mainImage = product.imageUrl
+          ? [{ url: product.imageUrl, main: true, file: null }]
+          : [];
+
+        const notMainImages = Array.isArray(product.notMainImages)
+          ? product.notMainImages
+          : [];
+
+        // Cập nhật state hiển thị ảnh
+        setImagePreviews({
+          main: mainImage,
+          additional: notMainImages.length > 0 ? [{ url: notMainImages[0], main: false, file: null }] : [],
+          featured: notMainImages.length > 1 ? [{ url: notMainImages[1], main: false, file: null }] : [],
+          secondary: notMainImages.length > 2 ? [{ url: notMainImages[2], main: false, file: null }] : [],
+        });
+
       } catch (error) {
         Swal.fire({
           title: 'Lỗi',
@@ -90,13 +214,57 @@ const ProductUpdate = () => {
     setIsSubmitting(true);
 
     try {
-      let imageUrl = null;
+      let imageUrls = [];
 
-      // Upload ảnh nếu có
-      if (image) {
-        const storageRef = ref(storage, `images/sheepshop/${image.name}`);
-        await uploadBytes(storageRef, image);
-        imageUrl = await getDownloadURL(storageRef);
+      // Kết hợp tất cả các loại ảnh từ images và imagePreviews
+      const allImages = [
+        ...images,
+        ...imagePreviews.main,
+        ...imagePreviews.additional,
+        ...imagePreviews.featured,
+        ...imagePreviews.secondary,
+      ];
+
+      if (allImages && allImages.length > 0) {
+        imageUrls = await Promise.all(
+          allImages.map(async (image) => {
+            // Kiểm tra xem image có tồn tại và có thuộc tính file
+            if (!image || !image.file) {
+              console.warn(
+                "Hình ảnh không được xác định hoặc không hợp lệ, bị bỏ qua..."
+              );
+              return null; // Bỏ qua ảnh không hợp lệ
+            }
+
+            const storageRef = ref(
+              storage,
+              `images/sheepshop/${image.file.name}`
+            );
+            let imageUrl;
+
+            try {
+              // Kiểm tra xem ảnh đã tồn tại chưa
+              imageUrl = await getDownloadURL(storageRef);
+              console.log("Hình ảnh đã tồn tại:", imageUrl);
+              return {
+                url: imageUrl,
+                mainImage: image.main,
+              };
+            } catch (error) {
+              // Nếu không tồn tại, tải lên ảnh mới
+              await uploadBytes(storageRef, image.file);
+              imageUrl = await getDownloadURL(storageRef);
+              console.log("Hình ảnh đã được tải lên:", imageUrl);
+              return {
+                url: imageUrl,
+                mainImage: image.main,
+              };
+            }
+          })
+        );
+
+        // Lọc ra các giá trị null (các ảnh không hợp lệ)
+        imageUrls = imageUrls.filter((url) => url !== null);
       }
 
       // Gửi yêu cầu cập nhật sản phẩm
@@ -107,10 +275,26 @@ const ProductUpdate = () => {
         price: parseFloat(price),
         quantity: parseInt(quantity),
         weight: parseFloat(weight),
-        imageUrl: imageUrl || imagePreview // Sử dụng ảnh đã có nếu không có ảnh mới
       };
 
-      await productService.updateProduct(id, productData);
+      const productResponse = await productService.updateProduct(id, productData);
+      const productId = productResponse.data.id;
+
+      if (imageUrls === null) {
+        // Delete existing images
+        await axios.delete(`/admin/product/image/${productId}`);
+      }
+
+      // Add new images
+      await Promise.all(
+        imageUrls.map((image) =>
+          axios.post(`/admin/product/image`, {
+            productId,
+            imageUrl: image.url,
+            mainImage: image.mainImage ? 1 : 0, // Convert boolean to 1 or 0
+          })
+        )
+      );
 
       Swal.fire({
         title: 'Thành công',
@@ -143,8 +327,6 @@ const ProductUpdate = () => {
   return (
     <>
       <div className="right-content w-100">
-
-
 
         <form className="form" onSubmit={handleSubmitProductUpdate}>
 
@@ -279,35 +461,155 @@ const ProductUpdate = () => {
 
                 </div>
 
-                <div className="imagesUploadSec mt-3">
-                  <div className="imgUploadBox">
-                    {imagePreview ? (
-                      <div className="uploadBox">
-                        <span className="remove" onClick={removeImage}>
-                          <IoCloseSharp />
-                        </span>
-                        <div className="box">
-                          <LazyLoadImage
-                            alt="Product image"
-                            effect="blur"
-                            className="w-100"
-                            src={imagePreview}
-                          />
-                        </div>
+              </div>
+            </div>
+
+            <div className="col-md-12">
+              <div className="card p-4 mt-0">
+
+                <div className="imagesUploadSec mt-2 pl-3">
+                  <div className="imgUploadBox d-flex align-items-center">
+                    <div className="row">
+
+                      {/* Main Image Box */}
+                      <div className="col-md-3 pt-3">
+                        {imagePreviews.main.length > 0 ? (
+                          imagePreviews.main.map((preview, index) => (
+                            <div key={`main-${index}`} className="uploadBox">
+                              <span className="remove" onClick={() => removeImage("main", index)}>
+                                <IoCloseSharp />
+                              </span>
+                              <div className="box">
+                                <img
+                                  src={preview.url}
+                                  alt="Main product"
+                                  className="w-100"
+                                  onError={(e) => {
+                                    e.target.src = 'path/to/default-image.jpg';
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="uploadBox">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleMainImageChange}
+                              id="main-image-upload"
+                            />
+                            <label htmlFor="main-image-upload" className="info">
+                              <FaRegImages />
+                              <h5>Ảnh đại diện</h5>
+                            </label>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="uploadBox">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                        />
-                        <div className="info">
-                          <FaRegImages />
-                          <h5>Ảnh sản phẩm</h5>
-                        </div>
+
+                      {/* Additional Images Box */}
+                      <div className="col-md-3 pt-3">
+                        {imagePreviews.additional.length > 0 ? (
+                          imagePreviews.additional.map((preview, index) => (
+                            <div key={`additional-${index}`} className="uploadBox">
+                              <span className="remove" onClick={() => removeImage("additional", index)}>
+                                <IoCloseSharp />
+                              </span>
+                              <div className="box">
+                                <img
+                                  src={preview.url}
+                                  alt="Additional product"
+                                  className="w-100"
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="uploadBox">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleAdditionalImagesChange}
+                              id="additional-image-upload"
+                            />
+                            <label htmlFor="additional-image-upload" className="info">
+                              <FaRegImages />
+                              <h5>Ảnh phụ 1</h5>
+                            </label>
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      {/* Featured Images Box */}
+                      <div className="col-md-3 pt-3">
+                        {imagePreviews.featured.length > 0 ? (
+                          imagePreviews.featured.map((preview, index) => (
+                            <div key={`featured-${index}`} className="uploadBox">
+                              <span className="remove" onClick={() => removeImage("featured", index)}>
+                                <IoCloseSharp />
+                              </span>
+                              <div className="box">
+                                <img
+                                  src={preview.url}
+                                  alt="Featured product"
+                                  className="w-100"
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="uploadBox">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleFeaturedImagesChange}
+                              id="featured-image-upload"
+                            />
+                            <label htmlFor="featured-image-upload" className="info">
+                              <FaRegImages />
+                              <h5>Ảnh phụ 2</h5>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Secondary Images Box */}
+                      <div className="col-md-3 pt-3">
+                        {imagePreviews.secondary.length > 0 ? (
+                          imagePreviews.secondary.map((preview, index) => (
+                            <div key={`secondary-${index}`} className="uploadBox">
+                              <span className="remove" onClick={() => removeImage("secondary", index)}>
+                                <IoCloseSharp />
+                              </span>
+                              <div className="box">
+                                <img
+                                  src={preview.url}
+                                  alt="Secondary product"
+                                  className="w-100"
+                                />
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="uploadBox">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleSecondaryImagesChange}
+                              id="secondary-image-upload"
+                            />
+                            <label htmlFor="secondary-image-upload" className="info">
+                              <FaRegImages />
+                              <h5>Ảnh phụ 3</h5>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
                   </div>
                 </div>
 
@@ -324,7 +626,6 @@ const ProductUpdate = () => {
 
               </div>
             </div>
-
           </div>
 
         </form>
