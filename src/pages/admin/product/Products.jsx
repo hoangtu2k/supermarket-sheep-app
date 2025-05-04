@@ -251,7 +251,7 @@ const Products = () => {
                                                         <img
                                                             src={product.imageUrl}
                                                             className="w-100"
-                                                            alt={product.name.length > 20 ? product.name.substring(0, 20) + "..." : product.name}
+                                                            alt={product.name.length > 20 ? product.name.substring(0, 10) + "..." : product.name}
                                                         />
                                                     </div>
                                                 </div>
