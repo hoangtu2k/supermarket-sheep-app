@@ -1,21 +1,15 @@
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Modal, Box, Typography, FormControl, MenuItem, Pagination, Select } from '@mui/material';
+import Swal from 'sweetalert2';
+import { toast } from 'react-toastify';
+import { FaEye, FaPencilAlt } from 'react-icons/fa';
+import { MdDelete } from 'react-icons/md';
+import { RxReset } from 'react-icons/rx';
 
-import React, { useContext, useEffect, useState } from "react";
-import { toast } from "react-toastify";
-import { MdDelete } from "react-icons/md";
-import { FaEye, FaPencilAlt } from "react-icons/fa";
-import { RxReset } from "react-icons/rx";
-import MenuItem from "@mui/material/MenuItem";
-import Button from "@mui/material/Button";
-import FormControl from "@mui/material/FormControl";
-import Select from "@mui/material/Select";
-import Pagination from "@mui/material/Pagination";
-import Box from "@mui/material/Box";
-import Modal from "@mui/material/Modal";
-import Typography from "@mui/material/Typography";
-import Swal from "sweetalert2";
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { MyContext } from "../../../App";
 import { productService } from "../../../services/productService";
+import axios from '../../../services/axiosConfig';
 
 const styleImport = {
     position: "absolute",
@@ -34,68 +28,74 @@ const styleImport = {
 };
 
 const Products = () => {
-    const [id, setId] = useState(null);
-    const [code, setCode] = useState("");
-    const [name, setName] = useState("");
-    const [price, setPrice] = useState("");
-    const [weight, setWeight] = useState("");
-    const [description, setDescription] = useState("");
-    const [quantity, setQuantity] = useState(0);
-    const [status, setStatus] = useState(1);
-    const [image, setImage] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
+    const navigate = useNavigate(); // Khởi tạo useNavigate
+    const context = useContext(MyContext);
+
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const navigate = useNavigate(); // Khởi tạo useNavigate
+    const [openModelImport, setModelImport] = useState(false);
 
-    const handleChangeCategory = (event) => {
-        setCategory(event.target.value);
-    };
-    const handleChangeBrand = (event) => {
-        setBrand(event.target.value);
-    };
-
-    const context = useContext(MyContext);
+    const [selectedFile, setSelectedFile] = useState(null);
 
     const [showByStatus, setShowByStatus] = useState(1);
     const [showBysetCatBy, setCatBy] = useState("");
-    const [showByBrandBy, setBrandBy] = useState("");
 
     const [products, setProducts] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const resultsPerPage = 5;
 
-    // Lọc danh sách sản phẩm theo trạng thái, thương hiệu và danh mục
-    const filteredProducts = products.filter((product) => {
-        const matchesStatus =
-            showByStatus === "" || product.status === Number(showByStatus);
-        const matchesBrand =
-            showByBrandBy === "" || product.brandId === Number(showByBrandBy);
-        const matchesCategory =
-            showBysetCatBy === "" || product.categoryId === Number(showBysetCatBy); // Giả sử product.categoryId chứa ID danh mục
-
-        return matchesStatus && matchesBrand && matchesCategory; // Phải thỏa mãn cả ba điều kiện
-    });
-
-    // Phân trang
-    const totalResults = filteredProducts.length;
-    const totalPages = Math.ceil(totalResults / resultsPerPage);
-    const indexOfLastProduct = currentPage * resultsPerPage;
-    const indexOfFirstProduct = indexOfLastProduct - resultsPerPage;
-    const currentProducts = filteredProducts.slice(
-        indexOfFirstProduct,
-        indexOfLastProduct
-    );
 
     // Hàm xử lý thay đổi trang
     const handlePageChange = (event, value) => {
         setCurrentPage(value);
     };
 
-    // Hàm định dạng giá
-    const formatPrice = (price) => {
-        return new Intl.NumberFormat("vi-VN").format(price) + " VND";
+    const filteredProducts = products.filter((product) => {
+        const matchesStatus = showByStatus === "" || product.status === Number(showByStatus);
+        const matchesCategory = showBysetCatBy === "" || product.categoryId === Number(showBysetCatBy);
+        return matchesStatus && matchesCategory;
+    });
+
+    const totalResults = filteredProducts.length;
+    const totalPages = Math.ceil(totalResults / resultsPerPage);
+    const currentProducts = filteredProducts.slice((currentPage - 1) * resultsPerPage, currentPage * resultsPerPage);
+
+    // Handle file selection
+
+    const handleFileChange = (e) => {
+        setSelectedFile(e.target.files[0]);
     };
+
+
+    // Hàm import sản phẩm
+    const handleImportSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedFile) {
+            alert("Vui lòng chọn file Excel!");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        try {
+            setIsSubmitting(true);
+            const response = await axios.post('/admin/products/importExel', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            console.log(response.data); // "ok" nếu thành công
+            setModelImport(false);
+            fetchProducts();
+        } catch (error) {
+            console.error("Lỗi import:", error);
+            console.log("Import thất bại: " + (error.response?.data || error.message));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
 
     // Hàm xóa sản phẩm
     const handleDeleteProduct = async (productId) => {
@@ -143,6 +143,12 @@ const Products = () => {
     };
 
 
+    // Hàm định dạng giá
+    const formatPrice = (price) => {
+        return new Intl.NumberFormat("vi-VN").format(price) + " VND";
+    };
+
+
     // load data
     const fetchProducts = async () => {
         try {
@@ -161,8 +167,6 @@ const Products = () => {
         window.scrollTo(0, 0);
     }, []);
 
-    const [openModelImport, setModelImport] = useState(false);
-    const handleOpenModelImport = () => setModelImport(true);
 
 
     return (
@@ -181,7 +185,7 @@ const Products = () => {
                         <div className="col-md-3">
                             <Button
                                 className="btn-blue btn-lg btn-big"
-                                onClick={handleOpenModelImport} > Import</Button>
+                                onClick={() => setModelImport(true)}> Import</Button>
                         </div>
 
                     </div>
@@ -194,15 +198,13 @@ const Products = () => {
                                     value={showByStatus}
                                     onChange={(e) => {
                                         setShowByStatus(e.target.value);
-                                        setCurrentPage(1); // Reset về trang đầu khi thay đổi trạng thái
+                                        setCurrentPage(1); // Reset to the first page when changing status
                                     }}
                                     displayEmpty
                                     inputProps={{ "aria-label": "Without label" }}
                                     className="w-100"
                                 >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
+                                    <MenuItem value=""><em>None</em></MenuItem>
                                     <MenuItem value={1}>Đang kinh doanh</MenuItem>
                                     <MenuItem value={0}>Ngừng kinh doanh</MenuItem>
                                 </Select>
@@ -213,21 +215,17 @@ const Products = () => {
                             <h4>Hiển thị theo danh mục</h4>
                             <FormControl size="small" className="w-100">
                                 <Select
+                                    value={showBysetCatBy || ''} // Ensure value is defined
+                                    onChange={(e) => setCatBy(e.target.value)}
                                     displayEmpty
                                     inputProps={{ "aria-label": "Without label" }}
-                                    className="w-100"
                                 >
-                                    <MenuItem value="">
-                                        <em>None</em>
-                                    </MenuItem>
+                                    <MenuItem value=""><em>None</em></MenuItem>
+                                    {/* Add dynamic category options here */}
                                 </Select>
                             </FormControl>
                         </div>
 
-                        <div className="col-md-3">
-                            <h4>Hiển thị theo Thương hiệu</h4>
-
-                        </div>
                     </div>
 
                     <div className="table-responsive mt-3">
@@ -253,7 +251,7 @@ const Products = () => {
                                                         <img
                                                             src={product.imageUrl}
                                                             className="w-100"
-                                                            alt={product.name}
+                                                            alt={product.name.length > 20 ? product.name.substring(0, 20) + "..." : product.name}
                                                         />
                                                     </div>
                                                 </div>
@@ -318,74 +316,51 @@ const Products = () => {
                 </div>
             </div>
 
-            {/* Import sản phẩm */}
+            {/* Import sản phẩm Modal */}
             <Modal
                 keepMounted
                 open={openModelImport}
+                onClose={() => setModelImport(false)}
                 aria-labelledby="keep-mounted-modal-title"
                 aria-describedby="keep-mounted-modal-description"
             >
                 <Box sx={styleImport}>
-                    <Typography
-                        id="keep-mounted-modal-title"
-                        variant="h6"
-                        component="span"
-                    >
-                        Nhập hàng hóa từ file dữ liệu (Tải về file mẫu: Excel file )
+                    <Typography id="keep-mounted-modal-title" variant="h6" component="span">
+                        Nhập hàng hóa từ file dữ liệu (Tải về file mẫu: Excel file)
                     </Typography>
-                    <Typography
-                        id="keep-mounted-modal-description"
-                        component="span"
-                        sx={{ mt: 2 }}
-                    >
-                        <form className="form  mt-3">
+                    <Typography id="keep-mounted-modal-description" component="span" sx={{ mt: 2 }}>
+                        <form className="form mt-3" onSubmit={handleImportSubmit} encType="multipart/form-data">
                             <div className="row">
                                 <div className="col-md-12">
                                     <div className="card p-2 mt-0">
                                         <div className="row">
                                             <div className="col-md-12">
-                                                <div className="row">
-                                                    <div className="col">
-
-
-                                                        <div className="form-group">
-                                                            <div className="row">
-                                                                <div className="col-md-6">
-
-                                                                </div>
-                                                                <div className="col-md-6">
-                                                                    <Button className="btn-blue mt-2">Chọn file dữ liệu</Button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-
-                                                    </div>
+                                                <div className="form-group">
+                                                    <input
+                                                        type="file"
+                                                        accept=".xlsx, .xls"
+                                                        onChange={handleFileChange}
+                                                        style={{ display: 'none' }}
+                                                        id="file-input"
+                                                    />
+                                                    <label htmlFor="file-input">
+                                                        <Button className="btn-blue mt-2" component="span">Chọn file dữ liệu</Button>
+                                                    </label>
                                                 </div>
                                             </div>
-
                                         </div>
                                     </div>
                                 </div>
                             </div>
-
                             <div className="card p-4 mt-0">
                                 <div className="row">
                                     <div className="col mt-2">
-                                        <Button
-                                            className="btn-blue btn-lg btn-big"
-                                            type="submit"
-                                            disabled={isSubmitting}
-                                        >
+                                        <Button className="btn-blue btn-lg btn-big" type="submit" disabled={isSubmitting}>
                                             {isSubmitting ? "Đang thực hiện..." : "Thực hiện"}
                                         </Button>
                                     </div>
                                     <div className="col mt-2">
-                                        <Button
-                                            className="btn-big btn-close"
-                                        >
-                                            Bỏ qua
-                                        </Button>
+                                        <Button className="btn-big btn-close" onClick={() => setModelImport(false)}>Bỏ qua</Button>
                                     </div>
                                 </div>
                             </div>
