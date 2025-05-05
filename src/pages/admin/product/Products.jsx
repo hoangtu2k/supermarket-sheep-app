@@ -234,7 +234,6 @@ const Products = () => {
                                 <tr>
                                     <th>Mã sản phẩm</th>
                                     <th style={{ width: "300px" }}>Sản phẩm</th>
-                                    <th>Giá bán</th>
                                     <th>Số lượng</th>
                                     <th>Trạng thái</th>
                                     <th>Hành động</th>
@@ -261,7 +260,6 @@ const Products = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>{formatPrice(product.price)}</td>
                                         <td>{product.quantity}</td>
                                         <td>
                                             {product.status === 1

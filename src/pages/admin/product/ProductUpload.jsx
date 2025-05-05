@@ -9,611 +9,432 @@ import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
-import axios from "../../../services/axiosConfig";
 
 const ProductUpload = () => {
-
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [weight, setWeight] = useState("");
-  const [description, setDescription] = useState("");
-  const [quantity, setQuantity] = useState(0);
-
-  const [images, setImages] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState({
-    main: [],
-    additional: [],
-    featured: [],
-    secondary: [],
-  });
-
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const navigate = useNavigate();
+  const [productData, setProductData] = useState({
+    name: "",
+    description: "",
+    weight: "",
+    quantity: 0,
+    productDetails: [{
+      code: "",
+      unit: "hộp",
+      conversionRate: 1,
+      price: ""
+    }],
+    mainImage: false,
+    imageUrl: "",
+    notMainImages: []
+  });
+  const [imagePreviews, setImagePreviews] = useState({
+    main: null,
+    additional: []
+  });
+  const [uploadFiles, setUploadFiles] = useState({
+    main: null,
+    additional: []
+  });
 
-  const handleMainImageChange = (event) => {
-    const file = event.target.files[0];
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setProductData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleDetailChange = (index, e) => {
+    const { name, value } = e.target;
+    setProductData(prev => {
+      const newDetails = [...prev.productDetails];
+      newDetails[index] = { ...newDetails[index], [name]: value };
+      return { ...prev, productDetails: newDetails };
+    });
+  };
+
+  const addProductDetail = () => {
+    setProductData(prev => ({
+      ...prev,
+      productDetails: [
+        ...prev.productDetails,
+        { code: "", unit: "hộp", conversionRate: 1, price: "" }
+      ]
+    }));
+  };
+
+  const removeProductDetail = (index) => {
+    setProductData(prev => ({
+      ...prev,
+      productDetails: prev.productDetails.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleMainImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
     const previewUrl = URL.createObjectURL(file);
-
-    console.log("Main Image:", { file, url: previewUrl });
-
-    setImages((prevImages) => [
-      { file, main: true, featured: false, secondary: false },
-      ...prevImages.filter((img) => !img.main),
-    ]);
-
-    setImagePreviews((prevPreviews) => ({
-      main: [
-        { url: previewUrl, main: true, featured: false, secondary: false },
-      ],
-      additional: prevPreviews.additional,
-      featured: prevPreviews.featured,
-      secondary: prevPreviews.secondary,
-    }));
+    setImagePreviews(prev => ({ ...prev, main: previewUrl }));
+    setUploadFiles(prev => ({ ...prev, main: file }));
+    setProductData(prev => ({ ...prev, mainImage: true }));
   };
 
-  const handleAdditionalImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      featured: false,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      featured: false,
-    }));
+  const handleAdditionalImagesChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
 
-    console.log("Additional Images:", newImages, newImagePreviews);
-
-    setImages((prevImages) => [...prevImages, ...newImages]);
-    setImagePreviews((prevPreviews) => ({
-      ...prevPreviews,
-      additional: [...prevPreviews.additional, ...newImagePreviews],
-    }));
-  };
-
-  const handleFeaturedImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      featured: true,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      featured: true,
-    }));
-
-    console.log("Featured Images:", newImages, newImagePreviews);
-
-    setImages((prev) => [...prev, ...newImages]);
-    setImagePreviews((prev) => ({
+    const newPreviews = files.map(file => URL.createObjectURL(file));
+    setImagePreviews(prev => ({
       ...prev,
-      featured: [...prev.featured, ...newImagePreviews],
+      additional: [...prev.additional, ...newPreviews]
     }));
-  };
-
-  const handleSecondaryImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      secondary: true,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      secondary: true,
-    }));
-
-    console.log("Secondary Images:", newImages, newImagePreviews);
-
-    setImages((prev) => [...prev, ...newImages]);
-    setImagePreviews((prev) => ({
+    setUploadFiles(prev => ({
       ...prev,
-      secondary: [...prev.secondary, ...newImagePreviews],
+      additional: [...prev.additional, ...files]
     }));
   };
 
   const removeImage = (type, index) => {
     if (type === "main") {
-      setImagePreviews((prev) => ({
+      setImagePreviews(prev => ({ ...prev, main: null }));
+      setUploadFiles(prev => ({ ...prev, main: null }));
+      setProductData(prev => ({ ...prev, mainImage: false, imageUrl: "" }));
+    } else {
+      setImagePreviews(prev => ({
         ...prev,
-        main: prev.main.filter((_, i) => i !== index),
+        additional: prev.additional.filter((_, i) => i !== index)
       }));
-    } else if (type === "additional") {
-      setImagePreviews((prev) => ({
+      setUploadFiles(prev => ({
         ...prev,
-        additional: prev.additional.filter((_, i) => i !== index),
+        additional: prev.additional.filter((_, i) => i !== index)
       }));
-    } else if (type === "featured") {
-      setImagePreviews((prev) => ({
+      setProductData(prev => ({
         ...prev,
-        featured: prev.featured.filter((_, i) => i !== index),
-      }));
-    } else if (type === "secondary") {
-      setImagePreviews((prev) => ({
-        ...prev,
-        secondary: prev.secondary.filter((_, i) => i !== index),
+        notMainImages: prev.notMainImages.filter((_, i) => i !== index)
       }));
     }
   };
 
-  const resetFormFields = () => {
-    setCode("");
-    setName("");
-    setDescription("");
-    setPrice("");
-    setQuantity(0);
-    setWeight("");
-    setImages([]);
-    setImagePreviews({
-      main: [],
-      additional: [],
-      featured: [],
-      secondary: [],
-      banner: [],
-    });
+  const uploadImage = async (file) => {
+    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
   };
 
-  const handleSubmitProductAdd = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (isSubmitting) return;
+
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
 
     try {
-      let imageUrls = [];
+      // Upload main image
+      const mainImageUrl = await uploadImage(uploadFiles.main);
 
-      // Check if there are images to upload
-      if (images && images.length > 0) {
-        imageUrls = await Promise.all(
-          images.map(async (image) => {
-            const storageRef = ref(storage, `images/sheepshop/${image.file.name}`);
-            let imageUrl;
-
-            try {
-              // Check if the image already exists
-              imageUrl = await getDownloadURL(storageRef);
-              return {
-                url: imageUrl,
-                mainImage: image.main,
-              };
-            } catch (error) {
-              // If it doesn't exist, upload the image
-              await uploadBytes(storageRef, image.file);
-              imageUrl = await getDownloadURL(storageRef);
-            }
-
-            return {
-              url: imageUrl,
-              mainImage: image.main,
-            };
-          })
-        );
+      // Upload additional images if any
+      const additionalUrls = [];
+      for (const file of uploadFiles.additional) {
+        const url = await uploadImage(file);
+        additionalUrls.push(url);
       }
 
-      // Prepare product data
-      const productData = {
-        code,
-        name,
-        description,
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
-        weight: parseFloat(weight),
+      // Prepare final payload
+      const payload = {
+        ...productData,
+        imageUrl: mainImageUrl,
+        notMainImages: additionalUrls,
+        weight: productData.weight ? parseFloat(productData.weight) : 0,
+        quantity: parseInt(productData.quantity) || 0,
+        productDetails: productData.productDetails.map(detail => ({
+          code: detail.code || undefined, // Gửi code hoặc undefined nếu trống
+          unit: detail.unit || "unit",
+          conversionRate: parseInt(detail.conversionRate) || 1,
+          price: parseFloat(detail.price) || 0
+        }))
       };
 
       // Create product
-      const response = await productService.createProduct(productData);
-      const productId = response.data.id; // Ensure you're accessing the correct property
+      await productService.createProduct(payload);
 
-      // Add product images
-      await Promise.all(
-        imageUrls.map((image) =>
-          axios.post(`/admin/product/image`, {
-            productId,
-            imageUrl: image.url,
-            mainImage: image.mainImage ? 1 : 0, // Convert boolean to 1 or 0
-          })
-        )
-      );
-
-      // Confirmation before adding product
-      const result = await Swal.fire({
-        title: 'Xác nhận',
-        text: "Bạn có chắc chắn muốn thêm sản phẩm này không?",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Có',
-        cancelButtonText: 'Không'
+      Swal.fire({
+        title: 'Thành công',
+        text: 'Sản phẩm đã được thêm thành công',
+        icon: 'success'
+      }).then(() => {
+        navigate('/admin/products');
       });
-
-      // If user doesn't confirm, stop the process
-      if (!result.isConfirmed) {
-        return;
-      }
-
-      resetFormFields();
-      navigate('/admin/products'); // Redirect after success
     } catch (error) {
-      // Improved error handling
-      if (error.response) {
-        console.error("Server error:", error.response.data);
-        Swal.fire({
-          title: 'Lỗi',
-          text: error.response.data.message || "Đã có lỗi xảy ra.",
-          icon: 'error'
-        });
-      } else if (error.request) {
-        console.error("No response received:", error.request);
-        Swal.fire({
-          title: 'Lỗi',
-          text: "Không nhận được phản hồi từ máy chủ. Vui lòng thử lại.",
-          icon: 'error'
-        });
-      } else {
-        console.error("Error:", error.message);
-        Swal.fire({
-          title: 'Lỗi',
-          text: error.message,
-          icon: 'error'
-        });
-      }
+      console.error("Error:", error);
+      Swal.fire({
+        title: 'Lỗi',
+        text: error.response?.data?.message || 'Tạo sản phẩm thất bại',
+        icon: 'error'
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const [categoryVal, setcategoryVal] = useState('');
-  const [brandVal, setbrandVal] = useState('');
+  const validateForm = () => {
+    if (!productData.name.trim()) {
+      Swal.fire('Lỗi', 'Vui lòng nhập tên sản phẩm', 'error');
+      return false;
+    }
 
-  const handleChangeCategory = (event) => {
-    setcategoryVal(event.target.value);
-  };
-  const handleChangeBrand = (event) => {
-    setbrandVal(event.target.value);
+    if (!uploadFiles.main) {
+      Swal.fire('Lỗi', 'Vui lòng chọn ảnh chính', 'error');
+      return false;
+    }
+
+    for (const detail of productData.productDetails) {
+      if (!detail.price || isNaN(detail.price)) {
+        Swal.fire('Lỗi', 'Vui lòng nhập giá bán hợp lệ cho tất cả đơn vị', 'error');
+        return false;
+      }
+
+      // Thêm validate cho code nếu cần
+      /*
+      if (!detail.code || !detail.code.trim()) {
+        Swal.fire('Lỗi', 'Vui lòng nhập mã code cho tất cả đơn vị', 'error');
+        return false;
+      }
+      */
+    }
+
+    return true;
   };
 
   return (
-    <>
-      <div className="right-content w-100">
+    <div className="right-content w-100">
+      <form className="form" onSubmit={handleSubmit}>
+        <div className="row">
+          <div className="col-md-12">
+            <div className="card p-3 mt-0">
+              <h5 className="mb-4">Thông tin cơ bản</h5>
 
+              <div className="row">
+                <div className="col-md-6">
 
-
-        <form className="form" onSubmit={handleSubmitProductAdd}>
-
-          <div className="row">
-            <div className="col-md-6">
-              <div className="card p-3 mt-0">
-                <h5 className="mb-4">Thông tin cơ bản</h5>
-
-                <div className="row">
-                  <div className="col">
-
-                    <div className="form-group">
-                      <h6>Mã sản phẩm</h6>
-                      <input
-                        type="text"
-                        placeholder="Mã sản phẩm"
-                        value={code || ""}
-                        onChange={(e) => setCode(e.target.value)}
-                      />
-                    </div>
-
+                  <div className="form-group">
+                    <h6>Tên sản phẩm *</h6>
+                    <input
+                      type="text"
+                      name="name"
+                      value={productData.name}
+                      onChange={handleInputChange}
+                      required
+                    />
                   </div>
-                  <div className="col">
 
-                    <div className="form-group">
-                      <h6>Tên sản phẩm</h6>
-                      <input
-                        type="text"
-                        placeholder="Nhập tên"
-                        value={name || ""}
-                        onChange={(e) => setName(e.target.value)}
-                      />
-                    </div>
-
+                  <div className="form-group">
+                    <h6>Mô tả</h6>
+                    <textarea
+                      name="description"
+                      value={productData.description}
+                      onChange={handleInputChange}
+                      rows={5}
+                    />
                   </div>
 
                 </div>
 
-                <div className="form-group">
-                  <h6>Mô tả</h6>
-                  <textarea
-                    style={{ height: "105px" }}
-                    rows={5}
-                    cols={10}
-                    placeholder="Mô tả sản phẩm"
-                    value={description || ""}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
+                <div className="col-md-6">
+
+                  <div className="form-group">
+                    <h6>Trọng lượng (kg)</h6>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="weight"
+                      value={productData.weight}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <h6>Số lượng</h6>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={productData.quantity}
+                      onChange={handleInputChange}
+                    />
+                  </div>
 
                 </div>
-
               </div>
+
             </div>
+          </div>
 
-            <div className="col-md-6">
-              <div className="card p-4 pb-4 mt-0">
+          <div className="col-md-12">
+            <div className="card p-4 pb-4 mt-0">
+              <h5 className="mb-4">Đơn vị bán</h5>
 
-
-                <div className="form-group">
-                  <h6>Trọng lượng</h6>
-                  <input
-                    type="text"
-                    placeholder="Nhập trọng lượng"
-                    value={weight || ""}
-                    onChange={(e) => setWeight(e.target.value)}
-                  />
-                </div>
-
-                <div className="row">
-                  <div className="col">
-
+              {productData.productDetails.map((detail, index) => (
+                <div key={index} className="row mb-3">
+                  <div className="col-md-3">
                     <div className="form-group">
-                      <h6>Số lượng</h6>
+                      <h6>Mã code</h6>
                       <input
                         type="text"
-                        placeholder="Nhập số lượng"
-                        value={quantity || ""}
-                        onChange={(e) => setQuantity(e.target.value)}
+                        name="code"
+                        value={detail.code}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        placeholder="Nhập mã code"
                       />
                     </div>
-
                   </div>
-                  <div className="col">
-
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>Đơn vị</h6>
+                      <input
+                        type="text"
+                        name="unit"
+                        value={detail.unit}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        placeholder="Nhập đơn vị"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>Tỷ lệ quy đổi</h6>
+                      <input
+                        type="number"
+                        name="conversionRate"
+                        value={detail.conversionRate}
+                        onChange={(e) => handleDetailChange(index, e)}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2">
                     <div className="form-group">
                       <h6>Giá bán</h6>
                       <input
-                        type="text"
-                        placeholder="Nhập giá bán"
-                        value={price || ""}
-                        onChange={(e) => setPrice(e.target.value)}
+                        type="number"
+                        name="price"
+                        value={detail.price}
+                        onChange={(e) => handleDetailChange(index, e)}
                       />
                     </div>
-
                   </div>
-
-                </div>
-
-                <div className="row">
-
-                  <div className="col">
-                    <h6>Danh mục</h6>
-                    <Select
-                      value={categoryVal}
-                      onChange={handleChangeCategory}
-                      displayEmpty
-                      inputProps={{ 'aria-label': 'Without label' }}
-                      className="w-100"
+                  <div className="col-md-2" style={{marginTop:'40px'}}>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => removeProductDetail(index)}
+                      fullWidth
                     >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      <MenuItem value={'men'}>Man</MenuItem>
-                      <MenuItem value={'woman'}>Woman</MenuItem>
-
-                    </Select>
-                  </div>
-                  <div className="col">
-                    <h6>Thương hiệu</h6>
-                    <Select
-                      value={brandVal}
-                      onChange={handleChangeBrand}
-                      displayEmpty
-                      inputProps={{ 'aria-label': 'Without label' }}
-                      className="w-100"
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      <MenuItem value={10}>Apple</MenuItem>
-                      <MenuItem value={20}>Samsung</MenuItem>
-
-                    </Select>
-                  </div>
-
-                </div>
-
-
-
-
-
-              </div>
-            </div>
-            <div className="col-md-12">
-              <div className="card p-4 mt-0">
-
-                <div className="imagesUploadSec mt-2 pl-3">
-                  <div className="imgUploadBox d-flex align-items-center">
-                    <div className="row">
-                      <div className="col-md-3 pt-3">
-                        {/* Main Image Upload */}
-                        {imagePreviews.main.length ? (
-                          imagePreviews.main.map((preview, index) => (
-                            <div key={index} className="uploadBox">
-                              <span
-                                className="remove"
-                                onClick={() => removeImage("main", index)}
-                              >
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <LazyLoadImage
-                                  alt="Main image"
-                                  effect="blur"
-                                  className="w-100"
-                                  src={preview.url}
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleMainImageChange}
-                            />
-                            <div className="info">
-                              <FaRegImages />
-                              <h5>Main Image Upload</h5>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-md-3 pt-3">
-                        {/* Additional Images Upload */}
-                        {imagePreviews.additional.length ? (
-                          imagePreviews.additional.map(
-                            (preview, index) => (
-                              <div key={index} className="uploadBox">
-                                <span
-                                  className="remove"
-                                  onClick={() =>
-                                    removeImage("additional", index)
-                                  }
-                                >
-                                  <IoCloseSharp />
-                                </span>
-                                <div className="box">
-                                  <LazyLoadImage
-                                    alt="Additional image"
-                                    effect="blur"
-                                    className="w-100"
-                                    src={preview.url}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          )
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleAdditionalImagesChange}
-                            />
-                            <div className="info">
-                              <FaRegImages />
-                              <h5>Additional Images Upload</h5>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-md-3 pt-3">
-                        {/* Featured Images Upload */}
-                        {imagePreviews.featured.length ? (
-                          imagePreviews.featured.map((preview, index) => (
-                            <div key={index} className="uploadBox">
-                              <span
-                                className="remove"
-                                onClick={() =>
-                                  removeImage("featured", index)
-                                }
-                              >
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <LazyLoadImage
-                                  alt="Featured image"
-                                  effect="blur"
-                                  className="w-100"
-                                  src={preview.url}
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleFeaturedImagesChange}
-                            />
-                            <div className="info">
-                              <FaRegImages />
-                              <h5>Featured Images Upload</h5>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-md-3 pt-3">
-                        {/* Featured Images Upload */}
-                        {imagePreviews.secondary.length ? (
-                          imagePreviews.secondary.map(
-                            (preview, index) => (
-                              <div key={index} className="uploadBox">
-                                <span
-                                  className="remove"
-                                  onClick={() =>
-                                    removeImage("secondary", index)
-                                  }
-                                >
-                                  <IoCloseSharp />
-                                </span>
-                                <div className="box">
-                                  <LazyLoadImage
-                                    alt="Secondary image"
-                                    effect="blur"
-                                    className="w-100"
-                                    src={preview.url}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          )
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleSecondaryImagesChange}
-                            />
-                            <div className="info">
-                              <FaRegImages />
-                              <h5>Secondary Images Upload</h5>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                      Xóa
+                    </Button>
                   </div>
                 </div>
+              ))}
 
-                <br />
-
-                <div className="row">
-                  <div className="col-md-5">
-                    <Button type="reset" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; Làm mới</Button>
-                  </div>
-                  <div className="col-md-7">
-                    <Button type="submit" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; XUẤT BẢN VÀ XEM</Button>
-                  </div>
+              <div className="row">
+                <div className="col-md-3"> {/* Đặt cùng độ rộng với cột mã code */}
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={addProductDetail}
+                    fullWidth
+                    style={{ marginTop: '16px' }}
+                  >
+                    Thêm đơn vị bán
+                  </Button>
                 </div>
-
               </div>
             </div>
           </div>
 
-        </form>
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <div className="imagesUploadSec mt-2 pl-3">
+                <div className="row">
+                  <div className="col-md-6 pt-3">
+                    <h6>Ảnh chính</h6>
+                    {imagePreviews.main ? (
+                      <div className="uploadBox">
+                        <span className="remove" onClick={() => removeImage("main")}>
+                          <IoCloseSharp />
+                        </span>
+                        <LazyLoadImage
+                          src={imagePreviews.main}
+                          alt="Main preview"
+                          className="w-100"
+                          effect="blur"
+                        />
+                      </div>
+                    ) : (
+                      <div className="uploadBox">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleMainImageChange}
+                        />
+                        <div className="info">
+                          <FaRegImages />
+                          <h5>Ảnh chính</h5>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
+                  <div className="col-md-6 pt-3">
+                    <h6>Ảnh phụ</h6>
+                    <div className="additional-images">
+                      {imagePreviews.additional.map((preview, index) => (
+                        <div key={index} className="uploadBox">
+                          <span className="remove" onClick={() => removeImage("additional", index)}>
+                            <IoCloseSharp />
+                          </span>
+                          <LazyLoadImage
+                            src={preview}
+                            alt={`Additional ${index}`}
+                            className="w-100"
+                            effect="blur"
+                          />
+                        </div>
+                      ))}
+                      <div className="uploadBox">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleAdditionalImagesChange}
+                        />
+                        <div className="info">
+                          <FaRegImages />
+                          <h5>Ảnh phụ</h5>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-
-
-
-
-      </div>
-    </>
+              <div className="row mt-4">
+                <div className="col-md-12 text-end">
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    disabled={isSubmitting}
+                    startIcon={<FaCloudUploadAlt />}
+                  >
+                    {isSubmitting ? 'Đang xử lý...' : 'Thêm sản phẩm'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
   );
 };
 
