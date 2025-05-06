@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from "@mui/material/Button";
 import { MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
-import { FaCloudUploadAlt, FaRegImages } from "react-icons/fa";
+import { FaCloudUploadAlt, FaPencilAlt, FaPlus, FaRegImages } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -321,7 +321,7 @@ const ProductUpload = () => {
                       />
                     </div>
                   </div>
-                  <div className="col-md-2" style={{marginTop:'40px'}}>
+                  <div className="col-md-2" style={{ marginTop: '40px' }}>
                     <Button
                       type="button"
                       variant="outlined"
@@ -353,67 +353,136 @@ const ProductUpload = () => {
 
           <div className="col-md-12">
             <div className="card p-4 mt-0">
-              <div className="imagesUploadSec mt-2 pl-3">
+              <div className="imagesUploadSec">
                 <div className="row">
-                  <div className="col-md-6 pt-3">
-                    <h6>Ảnh chính</h6>
+                  {/* Ảnh chính */}
+                  <div className="col-md-6 mb-4">
+                    <div className="d-flex align-items-center mb-3">
+                      <h6 className="m-0">Ảnh chính</h6>
+                      <span className="text-muted ms-2">(Bắt buộc)</span>
+                    </div>
+
                     {imagePreviews.main ? (
-                      <div className="uploadBox">
-                        <span className="remove" onClick={() => removeImage("main")}>
-                          <IoCloseSharp />
-                        </span>
-                        <LazyLoadImage
-                          src={imagePreviews.main}
-                          alt="Main preview"
-                          className="w-100"
-                          effect="blur"
-                        />
+                      <div className="position-relative">
+                        <div className="uploaded-image-preview shadow-sm rounded">
+                          <LazyLoadImage
+                            src={imagePreviews.main}
+                            alt="Main preview"
+                            className="w-100 h-100 object-fit-cover"
+                            effect="blur"
+                            style={{ minHeight: "200px" }}
+                          />
+                          <div className="d-flex justify-content-center gap-2 mt-2">
+                            {/* Nút Thay đổi ảnh */}
+                            <label className="btn btn-sm btn-outline-primary">
+                              <FaPencilAlt /> Thay đổi
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleMainImageChange}
+                                className="d-none"
+                              />
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     ) : (
-                      <div className="uploadBox">
+                      // Phần upload ảnh ban đầu
+                      <label className="upload-box-main">
                         <input
                           type="file"
                           accept="image/*"
                           onChange={handleMainImageChange}
+                          className="d-none"
                         />
-                        <div className="info">
-                          <FaRegImages />
-                          <h5>Ảnh chính</h5>
+                        <div className="text-center">
+                          <FaCloudUploadAlt size={32} color="#007bff" />
+                          <h5>Tải ảnh chính lên</h5>
                         </div>
-                      </div>
+                      </label>
                     )}
                   </div>
 
-                  <div className="col-md-6 pt-3">
-                    <h6>Ảnh phụ</h6>
-                    <div className="additional-images">
-                      {imagePreviews.additional.map((preview, index) => (
-                        <div key={index} className="uploadBox">
-                          <span className="remove" onClick={() => removeImage("additional", index)}>
-                            <IoCloseSharp />
-                          </span>
-                          <LazyLoadImage
-                            src={preview}
-                            alt={`Additional ${index}`}
-                            className="w-100"
-                            effect="blur"
-                          />
-                        </div>
-                      ))}
-                      <div className="uploadBox">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleAdditionalImagesChange}
-                        />
-                        <div className="info">
-                          <FaRegImages />
-                          <h5>Ảnh phụ</h5>
-                        </div>
+                  {/* Ảnh phụ */}
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center mb-3">
+                      <h6 className="m-0">Ảnh phụ</h6>
+                      <span className="text-muted ms-2">(Tối đa 5 ảnh)</span>
+                    </div>
+
+                    <div className="additional-images-container">
+                      <div className="row g-2">
+                        {imagePreviews.additional.map((preview, index) => (
+                          <div key={index} className="col-4 mb-2">
+                            <div className="position-relative">
+                              <div
+                                className="additional-image-preview shadow-sm rounded"
+                                style={{
+                                  border: "1px dashed #ddd",
+                                  overflow: "hidden",
+                                  aspectRatio: "1/1"
+                                }}
+                              >
+                                <LazyLoadImage
+                                  src={preview}
+                                  alt={`Additional ${index}`}
+                                  className="w-100 h-100 object-fit-cover"
+                                  effect="blur"
+                                />
+                                <button
+                                  className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                  onClick={() => removeImage("additional", index)}
+                                  style={{
+                                    width: "24px",
+                                    height: "24px",
+                                    borderRadius: "50%",
+                                    padding: "0",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    top: '0px',
+                                    right: "0px"
+                                  }}
+                                >
+                                  <IoCloseSharp size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {imagePreviews.additional.length < 5 && (
+                          <div className="col-4">
+                            <label
+                              className="upload-box-additional d-flex align-items-center justify-content-center"
+                              style={{
+                                border: "2px dashed #6c757d",
+                                borderRadius: "8px",
+                                cursor: "pointer",
+                                aspectRatio: "1/1",
+                                transition: "all 0.3s",
+                                backgroundColor: "rgba(108, 117, 125, 0.05)"
+                              }}
+                            >
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleAdditionalImagesChange}
+                                className="d-none"
+                              />
+                              <div className="text-center p-2">
+                                <FaPlus size={20} color="#6c757d" /> {/* Đã được import */}
+                                <p className="small m-0 mt-1">Thêm ảnh</p>
+                              </div>
+                            </label>
+                          </div>
+                        )}
                       </div>
                     </div>
+
                   </div>
+
                 </div>
               </div>
 
@@ -425,6 +494,13 @@ const ProductUpload = () => {
                     color="primary"
                     disabled={isSubmitting}
                     startIcon={<FaCloudUploadAlt />}
+                    sx={{
+                      padding: "8px 24px",
+                      borderRadius: "8px",
+                      textTransform: "none",
+                      fontSize: "1rem",
+                      fontWeight: "500"
+                    }}
                   >
                     {isSubmitting ? 'Đang xử lý...' : 'Thêm sản phẩm'}
                   </Button>
@@ -432,6 +508,7 @@ const ProductUpload = () => {
               </div>
             </div>
           </div>
+
         </div>
       </form>
     </div>

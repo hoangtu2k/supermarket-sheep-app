@@ -558,3 +558,31 @@ body.dark .imgUploadBox .uploadBox{border: 1px dashed  rgba(255,255,255,0.2);}
   .error{
     color: red;
   }
+
+  .upload-box-main {
+    border: 2px dashed #007bff;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 2rem;
+    transition: all 0.3s;
+    min-height: 200px;
+    background-color: rgba(0, 123, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .upload-box-main:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+  }
+  
+  .uploaded-image-preview {
+    border: 1px dashed #ddd;
+    overflow: hidden;
+    position: relative;
+    min-height: 200px;
+  }
+
+  .cursor-pointer {
+    cursor: pointer;
+  }

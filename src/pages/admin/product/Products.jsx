@@ -153,11 +153,13 @@ const Products = () => {
     const fetchProducts = async () => {
         try {
             const response = await productService.getAllProducts();
-            setProducts(response.data);
+            const productsWithDetails = response.data.map(product => ({
+                ...product,
+                productDetails: product.productDetails || [] // Đảm bảo luôn là mảng
+            }));
+            setProducts(productsWithDetails);
         } catch (error) {
-            toast.error(
-                "Error fetching products: " + (error.response?.data?.message || error.message)
-            );
+            toast.error("Error fetching products: " + error.message);
         }
     };
 
@@ -242,7 +244,11 @@ const Products = () => {
                             <tbody>
                                 {currentProducts.map((product) => (
                                     <tr key={product.id}>
-                                        <td>{product.code}</td>
+                                        <td>
+                                            {product.productDetails && product.productDetails.length > 0
+                                                ? product.productDetails[0].code
+                                                : "N/A"}
+                                        </td>
                                         <td>
                                             <div className="d-flex align-items-center productBox">
                                                 <div className="imgWrapper">
