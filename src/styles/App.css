@@ -565,7 +565,7 @@ body.dark .imgUploadBox .uploadBox{border: 1px dashed  rgba(255,255,255,0.2);}
     cursor: pointer;
     padding: 2rem;
     transition: all 0.3s;
-    min-height: 200px;
+    min-height: 300px;
     background-color: rgba(0, 123, 255, 0.05);
     display: flex;
     align-items: center;
@@ -585,4 +585,15 @@ body.dark .imgUploadBox .uploadBox{border: 1px dashed  rgba(255,255,255,0.2);}
 
   .cursor-pointer {
     cursor: pointer;
+  }
+
+  /* Ẩn spinner trên input number */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type=number] {
+    -moz-appearance: textfield;
   }

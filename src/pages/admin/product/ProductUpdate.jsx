@@ -1,180 +1,74 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from 'react-router-dom';
 import Button from "@mui/material/Button";
-import { MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
-import { FaCloudUploadAlt, FaRegImages } from "react-icons/fa";
+import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
 
-import axios from "../../../services/axiosConfig";
-
-
 const ProductUpdate = () => {
-
-  const { id } = useParams(); // Lấy id từ URL
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [weight, setWeight] = useState("");
-  const [description, setDescription] = useState("");
-  const [quantity, setQuantity] = useState(0);
-
-  const [images, setImages] = useState([]);
-  const [imagePreviews, setImagePreviews] = useState({
-    main: [],
-    additional: [],
-    featured: [],
-    secondary: [],
-  });
-
+  const { id } = useParams();
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const navigate = useNavigate();
+  const [productData, setProductData] = useState({
+    name: "",
+    description: "",
+    weight: "",
+    quantity: 0,
+    productDetails: [{
+      id: null,
+      code: "",
+      unit: "hộp",
+      conversionRate: 1,
+      price: ""
+    }],
+    mainImage: false,
+    imageUrl: "",
+    notMainImages: []
+  });
 
-  const handleMainImageChange = (event) => {
-    const file = event.target.files[0];
-    const previewUrl = URL.createObjectURL(file);
+  const [imagePreviews, setImagePreviews] = useState({
+    main: null,
+    additional: []
+  });
 
-    console.log("Main Image:", { file, url: previewUrl });
+  const [uploadFiles, setUploadFiles] = useState({
+    main: null,
+    additional: []
+  });
 
-    setImages((prevImages) => [
-      { file, main: true, featured: false, secondary: false },
-      ...prevImages.filter((img) => !img.main),
-    ]);
-
-    setImagePreviews((prevPreviews) => ({
-      main: [
-        { url: previewUrl, main: true, featured: false, secondary: false },
-      ],
-      additional: prevPreviews.additional,
-      featured: prevPreviews.featured,
-      secondary: prevPreviews.secondary,
-    }));
-  };
-
-  const handleAdditionalImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      featured: false,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      featured: false,
-    }));
-
-    console.log("Additional Images:", newImages, newImagePreviews);
-
-    setImages((prevImages) => [...prevImages, ...newImages]);
-    setImagePreviews((prevPreviews) => ({
-      ...prevPreviews,
-      additional: [...prevPreviews.additional, ...newImagePreviews],
-    }));
-  };
-
-  const handleFeaturedImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      featured: true,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      featured: true,
-    }));
-
-    console.log("Featured Images:", newImages, newImagePreviews);
-
-    setImages((prev) => [...prev, ...newImages]);
-    setImagePreviews((prev) => ({
-      ...prev,
-      featured: [...prev.featured, ...newImagePreviews],
-    }));
-  };
-
-  const handleSecondaryImagesChange = (event) => {
-    const files = Array.from(event.target.files);
-    const newImages = files.map((file) => ({
-      file,
-      main: false,
-      secondary: true,
-    }));
-    const newImagePreviews = files.map((file) => ({
-      url: URL.createObjectURL(file),
-      main: false,
-      secondary: true,
-    }));
-
-    console.log("Secondary Images:", newImages, newImagePreviews);
-
-    setImages((prev) => [...prev, ...newImages]);
-    setImagePreviews((prev) => ({
-      ...prev,
-      secondary: [...prev.secondary, ...newImagePreviews],
-    }));
-  };
-
-  const removeImage = (type, index) => {
-    if (type === "main") {
-      setImagePreviews((prev) => ({
-        ...prev,
-        main: prev.main.filter((_, i) => i !== index),
-      }));
-    } else if (type === "additional") {
-      setImagePreviews((prev) => ({
-        ...prev,
-        additional: prev.additional.filter((_, i) => i !== index),
-      }));
-    } else if (type === "featured") {
-      setImagePreviews((prev) => ({
-        ...prev,
-        featured: prev.featured.filter((_, i) => i !== index),
-      }));
-    } else if (type === "secondary") {
-      setImagePreviews((prev) => ({
-        ...prev,
-        secondary: prev.secondary.filter((_, i) => i !== index),
-      }));
-    }
-  };
-
-  // Tải dữ liệu sản phẩm khi component mount
+  // Fetch product data when component mounts
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         const response = await productService.getProductById(id);
         const product = response.data;
 
-        setCode(product.code);
-        setName(product.name);
-        setPrice(product.price);
-        setWeight(product.weight);
-        setDescription(product.description);
-        setQuantity(product.quantity);
+        setProductData({
+          name: product.name,
+          description: product.description,
+          weight: product.weight,
+          quantity: product.quantity,
+          productDetails: product.productDetails.map(detail => ({
+            id: detail.id,
+            code: detail.code,
+            unit: detail.unit,
+            conversionRate: detail.conversionRate,
+            price: detail.price
+          })),
+          mainImage: product.mainImage,
+          imageUrl: product.imageUrl,
+          notMainImages: product.notMainImages || []
+        });
 
-        // Xử lý ảnh
-        const mainImage = product.imageUrl
-          ? [{ url: product.imageUrl, main: true, file: null }]
-          : [];
-
-        const notMainImages = Array.isArray(product.notMainImages)
-          ? product.notMainImages
-          : [];
-
-        // Cập nhật state hiển thị ảnh
+        // Set image previews
         setImagePreviews({
-          main: mainImage,
-          additional: notMainImages.length > 0 ? [{ url: notMainImages[0], main: false, file: null }] : [],
-          featured: notMainImages.length > 1 ? [{ url: notMainImages[1], main: false, file: null }] : [],
-          secondary: notMainImages.length > 2 ? [{ url: notMainImages[2], main: false, file: null }] : [],
+          main: product.imageUrl || null,
+          additional: product.notMainImages || []
         });
 
       } catch (error) {
@@ -191,13 +85,116 @@ const ProductUpdate = () => {
     }
   }, [id]);
 
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setProductData(prev => ({ ...prev, [name]: value }));
+  };
 
-  const handleSubmitProductUpdate = async (e) => {
+  const handleDetailChange = (index, e) => {
+    const { name, value } = e.target;
+    setProductData(prev => {
+      const newDetails = [...prev.productDetails];
+      newDetails[index] = { ...newDetails[index], [name]: value };
+      return { ...prev, productDetails: newDetails };
+    });
+  };
+
+  const addProductDetail = () => {
+    setProductData(prev => ({
+      ...prev,
+      productDetails: [
+        ...prev.productDetails,
+        { id: null, code: "", unit: "hộp", conversionRate: 1, price: "" }
+      ]
+    }));
+  };
+
+  const removeProductDetail = (index) => {
+    setProductData(prev => ({
+      ...prev,
+      productDetails: prev.productDetails.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleMainImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreviews(prev => ({ ...prev, main: previewUrl }));
+    setUploadFiles(prev => ({ ...prev, main: file }));
+    setProductData(prev => ({ ...prev, mainImage: true }));
+  };
+
+  const handleAdditionalImagesChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    const newPreviews = files.map(file => URL.createObjectURL(file));
+    setImagePreviews(prev => ({
+      ...prev,
+      additional: [...prev.additional, ...newPreviews]
+    }));
+    setUploadFiles(prev => ({
+      ...prev,
+      additional: [...prev.additional, ...files]
+    }));
+  };
+
+  const removeImage = (type, index) => {
+    if (type === "main") {
+      setImagePreviews(prev => ({ ...prev, main: null }));
+      setUploadFiles(prev => ({ ...prev, main: null }));
+      setProductData(prev => ({ ...prev, mainImage: false, imageUrl: "" }));
+    } else {
+      setImagePreviews(prev => ({
+        ...prev,
+        additional: prev.additional.filter((_, i) => i !== index)
+      }));
+      setUploadFiles(prev => ({
+        ...prev,
+        additional: prev.additional.filter((_, i) => i !== index)
+      }));
+      setProductData(prev => ({
+        ...prev,
+        notMainImages: prev.notMainImages.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const uploadImage = async (file) => {
+    const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
+    await uploadBytes(storageRef, file);
+    return await getDownloadURL(storageRef);
+  };
+
+  const validateForm = () => {
+    if (!productData.name.trim()) {
+      Swal.fire('Lỗi', 'Vui lòng nhập tên sản phẩm', 'error');
+      return false;
+    }
+
+    if (!imagePreviews.main && !productData.imageUrl) {
+      Swal.fire('Lỗi', 'Vui lòng chọn ảnh chính', 'error');
+      return false;
+    }
+
+    for (const detail of productData.productDetails) {
+      if (!detail.price || isNaN(detail.price)) {
+        Swal.fire('Lỗi', 'Vui lòng nhập giá bán hợp lệ cho tất cả đơn vị', 'error');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (isSubmitting) return;
+    if (!validateForm()) return;
 
-    // Hiển thị hộp thoại xác nhận
     const result = await Swal.fire({
       title: 'Xác nhận',
       text: "Bạn có chắc chắn muốn cập nhật sản phẩm này không?",
@@ -207,94 +204,46 @@ const ProductUpdate = () => {
       cancelButtonText: 'Không'
     });
 
-    if (!result.isConfirmed) {
-      return; // Nếu người dùng không xác nhận, dừng lại
-    }
+    if (!result.isConfirmed) return;
 
     setIsSubmitting(true);
 
     try {
-      let imageUrls = [];
-
-      // Kết hợp tất cả các loại ảnh từ images và imagePreviews
-      const allImages = [
-        ...images,
-        ...imagePreviews.main,
-        ...imagePreviews.additional,
-        ...imagePreviews.featured,
-        ...imagePreviews.secondary,
-      ];
-
-      if (allImages && allImages.length > 0) {
-        imageUrls = await Promise.all(
-          allImages.map(async (image) => {
-            // Kiểm tra xem image có tồn tại và có thuộc tính file
-            if (!image || !image.file) {
-              console.warn(
-                "Hình ảnh không được xác định hoặc không hợp lệ, bị bỏ qua..."
-              );
-              return null; // Bỏ qua ảnh không hợp lệ
-            }
-
-            const storageRef = ref(
-              storage,
-              `images/sheepshop/${image.file.name}`
-            );
-            let imageUrl;
-
-            try {
-              // Kiểm tra xem ảnh đã tồn tại chưa
-              imageUrl = await getDownloadURL(storageRef);
-              console.log("Hình ảnh đã tồn tại:", imageUrl);
-              return {
-                url: imageUrl,
-                mainImage: image.main,
-              };
-            } catch (error) {
-              // Nếu không tồn tại, tải lên ảnh mới
-              await uploadBytes(storageRef, image.file);
-              imageUrl = await getDownloadURL(storageRef);
-              console.log("Hình ảnh đã được tải lên:", imageUrl);
-              return {
-                url: imageUrl,
-                mainImage: image.main,
-              };
-            }
-          })
-        );
-
-        // Lọc ra các giá trị null (các ảnh không hợp lệ)
-        imageUrls = imageUrls.filter((url) => url !== null);
+      // Upload new main image if changed
+      let mainImageUrl = productData.imageUrl;
+      if (uploadFiles.main) {
+        mainImageUrl = await uploadImage(uploadFiles.main);
       }
 
-      // Gửi yêu cầu cập nhật sản phẩm
-      const productData = {
-        code,
-        name,
-        description,
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
-        weight: parseFloat(weight),
+      // Upload additional images if changed
+      let additionalImageUrls = [...productData.notMainImages];
+      if (uploadFiles.additional.length > 0) {
+        const newAdditionalUrls = await Promise.all(
+          uploadFiles.additional.map(file => uploadImage(file))
+        );
+        additionalImageUrls = [...additionalImageUrls, ...newAdditionalUrls];
+      }
+
+      // Prepare product data for update
+      const updateData = {
+        name: productData.name,
+        description: productData.description,
+        weight: productData.weight,
+        quantity: productData.quantity,
+        productDetails: productData.productDetails.map(detail => ({
+          id: detail.id,
+          code: detail.code,
+          unit: detail.unit,
+          conversionRate: detail.conversionRate,
+          price: detail.price
+        })),
+        mainImage: !!mainImageUrl,
+        imageUrl: mainImageUrl,
+        notMainImages: additionalImageUrls
       };
 
-      const productResponse = await productService.updateProduct(id, productData);
-      const productId = productResponse.data.id;
-
-      if (imageUrls === null) {
-        // Delete existing images
-        await axios.delete(`/admin/product/image/${productId}`);
-      }
-
-      // Add new images
-      await Promise.all(
-        imageUrls.map((image) =>
-          axios.post(`/admin/product/image`, {
-            productId,
-            imageUrl: image.url,
-            mainImage: image.mainImage ? 1 : 0, // Convert boolean to 1 or 0
-          })
-        )
-      );
+      // Update product
+      await productService.updateProduct(id, updateData);
 
       Swal.fire({
         title: 'Thành công',
@@ -302,7 +251,7 @@ const ProductUpdate = () => {
         icon: 'success'
       });
 
-      navigate('/admin/products'); // Chuyển trang sau khi thành công
+      navigate('/admin/products');
     } catch (error) {
       Swal.fire({
         title: 'Lỗi',
@@ -314,324 +263,356 @@ const ProductUpdate = () => {
     }
   };
 
-  const [categoryVal, setcategoryVal] = useState('');
-  const [brandVal, setbrandVal] = useState('');
-
-  const handleChangeCategory = (event) => {
-    setcategoryVal(event.target.value);
-  };
-  const handleChangeBrand = (event) => {
-    setbrandVal(event.target.value);
-  };
 
   return (
-    <>
-      <div className="right-content w-100">
+    <div className="right-content w-100">
+      <form className="form" onSubmit={handleSubmit}>
+        <div className="row">
 
-        <form className="form" onSubmit={handleSubmitProductUpdate}>
-
-          <div className="row">
-            <div className="col-md-6">
-              <div className="card p-4 mt-0">
-                <h5 className="mb-4">Thông tin cơ bản</h5>
-
-                <div className="row">
-                  <div className="col">
-
-                    <div className="form-group">
-                      <h6>Mã sản phẩm</h6>
-                      <input
-                        type="text"
-                        placeholder="Mã sản phẩm"
-                        value={code || ""}
-                        onChange={(e) => setCode(e.target.value)}
-                      />
-                    </div>
-
-                  </div>
-                  <div className="col">
-
-                    <div className="form-group">
-                      <h6>Tên sản phẩm</h6>
-                      <input
-                        type="text"
-                        placeholder="Nhập tên"
-                        value={name || ""}
-                        onChange={(e) => setName(e.target.value)}
-                      />
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <div className="form-group">
-                  <h6>Trọng lượng</h6>
-                  <input
-                    type="text"
-                    placeholder="Nhập trọng lượng"
-                    value={weight || ""}
-                    onChange={(e) => setWeight(e.target.value)}
-                  />
-                </div>
-
-                <div className="row">
-                  <div className="col">
-
-                    <div className="form-group">
-                      <h6>Số lượng</h6>
-                      <input
-                        type="text"
-                        placeholder="Nhập số lượng"
-                        value={quantity || ""}
-                        onChange={(e) => setQuantity(e.target.value)}
-                      />
-                    </div>
-
-                  </div>
-                  <div className="col">
-
-                    <div className="form-group">
-                      <h6>Giá bán</h6>
-                      <input
-                        type="text"
-                        placeholder="Nhập giá bán"
-                        value={price || ""}
-                        onChange={(e) => setPrice(e.target.value)}
-                      />
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <div className="form-group">
-                  <h6>Mô tả</h6>
-                  <textarea
-                    rows={5}
-                    cols={10}
-                    placeholder="Mô tả sản phẩm"
-                    value={description || ""}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-
-                </div>
-
-              </div>
-            </div>
-
-            <div className="col-md-6">
-              <div className="card p-4 mt-0">
-
-                <div className="row">
-                  <div className="col">
-                    <h6>Danh mục</h6>
-                    <Select
-                      value={categoryVal}
-                      onChange={handleChangeCategory}
-                      displayEmpty
-                      inputProps={{ 'aria-label': 'Without label' }}
-                      className="w-100"
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      <MenuItem value={'men'}>Man</MenuItem>
-                      <MenuItem value={'woman'}>Woman</MenuItem>
-
-                    </Select>
-                  </div>
-                  <div className="col">
-                    <h6>Thương hiệu</h6>
-                    <Select
-                      value={brandVal}
-                      onChange={handleChangeBrand}
-                      displayEmpty
-                      inputProps={{ 'aria-label': 'Without label' }}
-                      className="w-100"
-                    >
-                      <MenuItem value="">
-                        <em>None</em>
-                      </MenuItem>
-                      <MenuItem value={10}>Apple</MenuItem>
-                      <MenuItem value={20}>Samsung</MenuItem>
-
-                    </Select>
-                  </div>
-
-                </div>
-
-              </div>
-            </div>
-
-            <div className="col-md-12">
-              <div className="card p-4 mt-0">
-
-                <div className="imagesUploadSec mt-2 pl-3">
-                  <div className="imgUploadBox d-flex align-items-center">
-                    <div className="row">
-
-                      {/* Main Image Box */}
-                      <div className="col-md-3 pt-3">
-                        {imagePreviews.main.length > 0 ? (
-                          imagePreviews.main.map((preview, index) => (
-                            <div key={`main-${index}`} className="uploadBox">
-                              <span className="remove" onClick={() => removeImage("main", index)}>
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <img
-                                  src={preview.url}
-                                  alt="Main product"
-                                  className="w-100"
-                                  onError={(e) => {
-                                    e.target.src = 'path/to/default-image.jpg';
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleMainImageChange}
-                              id="main-image-upload"
-                            />
-                            <label htmlFor="main-image-upload" className="info">
-                              <FaRegImages />
-                              <h5>Ảnh đại diện</h5>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Additional Images Box */}
-                      <div className="col-md-3 pt-3">
-                        {imagePreviews.additional.length > 0 ? (
-                          imagePreviews.additional.map((preview, index) => (
-                            <div key={`additional-${index}`} className="uploadBox">
-                              <span className="remove" onClick={() => removeImage("additional", index)}>
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <img
-                                  src={preview.url}
-                                  alt="Additional product"
-                                  className="w-100"
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleAdditionalImagesChange}
-                              id="additional-image-upload"
-                            />
-                            <label htmlFor="additional-image-upload" className="info">
-                              <FaRegImages />
-                              <h5>Ảnh phụ 1</h5>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Featured Images Box */}
-                      <div className="col-md-3 pt-3">
-                        {imagePreviews.featured.length > 0 ? (
-                          imagePreviews.featured.map((preview, index) => (
-                            <div key={`featured-${index}`} className="uploadBox">
-                              <span className="remove" onClick={() => removeImage("featured", index)}>
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <img
-                                  src={preview.url}
-                                  alt="Featured product"
-                                  className="w-100"
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleFeaturedImagesChange}
-                              id="featured-image-upload"
-                            />
-                            <label htmlFor="featured-image-upload" className="info">
-                              <FaRegImages />
-                              <h5>Ảnh phụ 2</h5>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Secondary Images Box */}
-                      <div className="col-md-3 pt-3">
-                        {imagePreviews.secondary.length > 0 ? (
-                          imagePreviews.secondary.map((preview, index) => (
-                            <div key={`secondary-${index}`} className="uploadBox">
-                              <span className="remove" onClick={() => removeImage("secondary", index)}>
-                                <IoCloseSharp />
-                              </span>
-                              <div className="box">
-                                <img
-                                  src={preview.url}
-                                  alt="Secondary product"
-                                  className="w-100"
-                                />
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="uploadBox">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleSecondaryImagesChange}
-                              id="secondary-image-upload"
-                            />
-                            <label htmlFor="secondary-image-upload" className="info">
-                              <FaRegImages />
-                              <h5>Ảnh phụ 3</h5>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                    </div>
-                  </div>
-                </div>
-
-                <br />
-
-                <div className="row">
-                  <div className="col-md-5">
-                    <Button type="reset" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; Làm mới</Button>
-                  </div>
-                  <div className="col-md-7">
-                    <Button type="submit" className="btn-blue btn-lg btn-big"><FaCloudUploadAlt />&nbsp; CẬP NHẬT VÀ XEM</Button>
-                  </div>
-                </div>
-
+          <div className="col-md-12">
+            <div className="card p-3 mt-0">
+              <div className="d-flex align-items-center">
+                <button
+                  className="btn btn-outline-secondary btn-sm rounded-circle me-2 d-flex align-items-center justify-content-center mr-2"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => navigate('/admin/products')}
+                >
+                  <FaArrowLeft size={16} />
+                </button>
+                <h4 className="mb-0">Cập nhật sản phẩm</h4>
               </div>
             </div>
           </div>
 
-        </form>
+          <div className="col-md-12">
+            <div className="card p-3 mt-0">
+              <h5 className="mb-4">Thông tin cơ bản</h5>
 
-      </div>
-    </>
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <h6>Tên sản phẩm *</h6>
+                    <input
+                      type="text"
+                      name="name"
+                      value={productData.name}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <h6>Mô tả</h6>
+                    <textarea
+                      name="description"
+                      value={productData.description}
+                      onChange={handleInputChange}
+                      rows={5}
+                    />
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <h6>Trọng lượng (kg)</h6>
+                    <input
+                      type="number"
+                      name="weight"
+                      value={productData.weight}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        e.target.blur();
+                      }}
+                    />
+
+                  </div>
+
+                  <div className="form-group">
+                    <h6>Số lượng</h6>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={productData.quantity}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        e.target.blur();
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 pb-4 mt-0">
+              <h5 className="mb-4">Đơn vị bán</h5>
+
+              {productData.productDetails.map((detail, index) => (
+                <div key={index} className="row mb-3">
+                  <div className="col-md-3">
+                    <div className="form-group">
+                      <h6>Mã code</h6>
+                      <input
+                        type="text"
+                        name="code"
+                        value={detail.code}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        placeholder="Nhập mã code"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>Đơn vị</h6>
+                      <input
+                        type="text"
+                        name="unit"
+                        value={detail.unit}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        placeholder="Nhập đơn vị"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>Tỷ lệ quy đổi</h6>
+                      <input
+                        type="number"
+                        name="conversionRate"
+                        value={detail.conversionRate}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                          }
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          e.target.blur();
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>Giá bán</h6>
+                      <input
+                        type="number"
+                        name="price"
+                        value={detail.price}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                          }
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          e.target.blur();
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-2" style={{ marginTop: '40px' }}>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => removeProductDetail(index)}
+                      fullWidth
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              <div className="row">
+                <div className="col-md-3">
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={addProductDetail}
+                    fullWidth
+                    style={{ marginTop: '16px' }}
+                  >
+                    Thêm đơn vị bán
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <div className="imagesUploadSec">
+                <div className="row">
+                  {/* Main Image */}
+                  <div className="col-md-6 mb-4">
+                    <div className="d-flex align-items-center mb-3">
+                      <h6 className="m-0">Ảnh chính</h6>
+                      <span className="text-muted ms-2">(Bắt buộc)</span>
+                    </div>
+
+                    {imagePreviews.main ? (
+                      <div className="position-relative">
+                        <div className="uploaded-image-preview shadow-sm rounded">
+                          <LazyLoadImage
+                            src={imagePreviews.main}
+                            alt="Main preview"
+                            className="w-100 h-100 object-fit-cover"
+                            effect="blur"
+                            style={{ minHeight: "200px" }}
+                          />
+                          <div className="d-flex justify-content-center gap-2 mt-2">
+                            <label className="btn btn-sm btn-outline-primary">
+                              <FaPencilAlt /> Thay đổi
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleMainImageChange}
+                                className="d-none"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="upload-box-main">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleMainImageChange}
+                          className="d-none"
+                        />
+                        <div className="text-center">
+                          <FaCloudUploadAlt size={32} color="#007bff" />
+                          <h5>Tải ảnh chính lên</h5>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Additional Images */}
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center mb-3">
+                      <h6 className="m-0">Ảnh phụ</h6>
+                      <span className="text-muted ms-2">(Tối đa 5 ảnh)</span>
+                    </div>
+
+                    <div className="additional-images-container">
+                      <div className="row g-2">
+                        {imagePreviews.additional.map((preview, index) => (
+                          <div key={index} className="col-4 mb-2">
+                            <div className="position-relative">
+                              <div
+                                className="additional-image-preview shadow-sm rounded"
+                                style={{
+                                  border: "1px dashed #ddd",
+                                  overflow: "hidden",
+                                  aspectRatio: "1/1"
+                                }}
+                              >
+                                <LazyLoadImage
+                                  src={preview}
+                                  alt={`Additional ${index}`}
+                                  className="w-100 h-100 object-fit-cover"
+                                  effect="blur"
+                                />
+                                <button
+                                  className="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                  onClick={() => removeImage("additional", index)}
+                                  style={{
+                                    width: "24px",
+                                    height: "24px",
+                                    borderRadius: "50%",
+                                    padding: "0",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    top: '0px',
+                                    right: "0px"
+                                  }}
+                                >
+                                  <IoCloseSharp size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        {imagePreviews.additional.length < 5 && (
+                          <div className="col-4">
+                            <label
+                              className="upload-box-additional d-flex align-items-center justify-content-center"
+                              style={{
+                                border: "2px dashed #6c757d",
+                                borderRadius: "8px",
+                                cursor: "pointer",
+                                aspectRatio: "1/1",
+                                transition: "all 0.3s",
+                                backgroundColor: "rgba(108, 117, 125, 0.05)"
+                              }}
+                            >
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleAdditionalImagesChange}
+                                className="d-none"
+                              />
+                              <div className="text-center p-2">
+                                <FaPlus size={20} color="#6c757d" />
+                                <p className="small m-0 mt-1">Thêm ảnh</p>
+                              </div>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row mt-4">
+                <div className="col-md-12 text-end">
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    disabled={isSubmitting}
+                    startIcon={<FaCloudUploadAlt />}
+                    sx={{
+                      padding: "8px 24px",
+                      borderRadius: "8px",
+                      textTransform: "none",
+                      fontSize: "1rem",
+                      fontWeight: "500"
+                    }}
+                  >
+                    {isSubmitting ? 'Đang xử lý...' : 'Cập nhật sản phẩm'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </form>
+    </div>
   );
 };
 

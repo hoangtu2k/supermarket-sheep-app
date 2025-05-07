@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import Button from "@mui/material/Button";
-import { MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
-import { FaCloudUploadAlt, FaPencilAlt, FaPlus, FaRegImages } from "react-icons/fa";
+import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -206,10 +205,27 @@ const ProductUpload = () => {
     return true;
   };
 
+
   return (
     <div className="right-content w-100">
       <form className="form" onSubmit={handleSubmit}>
         <div className="row">
+
+          <div className="col-md-12">
+            <div className="card p-3 mt-0">
+              <div className="d-flex align-items-center">
+                <button
+                  className="btn btn-outline-secondary btn-sm rounded-circle me-2 d-flex align-items-center justify-content-center mr-2"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => navigate('/admin/products')}
+                >
+                  <FaArrowLeft size={16} />
+                </button>
+                <h4 className="mb-0">Thêm sản phẩm mới</h4>
+              </div>
+            </div>
+          </div>
+
           <div className="col-md-12">
             <div className="card p-3 mt-0">
               <h5 className="mb-4">Thông tin cơ bản</h5>
@@ -250,6 +266,15 @@ const ProductUpload = () => {
                       name="weight"
                       value={productData.weight}
                       onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        e.target.blur();
+                      }}
                     />
                   </div>
 
@@ -260,6 +285,15 @@ const ProductUpload = () => {
                       name="quantity"
                       value={productData.quantity}
                       onChange={handleInputChange}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        e.target.blur();
+                      }}
                     />
                   </div>
 
@@ -307,6 +341,15 @@ const ProductUpload = () => {
                         name="conversionRate"
                         value={detail.conversionRate}
                         onChange={(e) => handleDetailChange(index, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                          }
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          e.target.blur();
+                        }}
                       />
                     </div>
                   </div>
@@ -318,6 +361,15 @@ const ProductUpload = () => {
                         name="price"
                         value={detail.price}
                         onChange={(e) => handleDetailChange(index, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                            e.preventDefault();
+                          }
+                        }}
+                        onWheel={(e) => {
+                          e.preventDefault();
+                          e.target.blur();
+                        }}
                       />
                     </div>
                   </div>
