@@ -5,3 +5,15 @@
     z-index: 1000;
   }
   
+
+  /* Ẩn spinner trên input number cho Chrome, Safari, Edge */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Ẩn spinner trên Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}

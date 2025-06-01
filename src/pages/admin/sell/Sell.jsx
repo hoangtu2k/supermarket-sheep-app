@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Menu, MenuItem, ListItemIcon, Button } from "@mui/material";
 import Logout from "@mui/icons-material/Logout";
 import { FaUser } from "react-icons/fa";
+import "../../../styles/sell.css";
 
 
 const Sell = () => {
@@ -15,17 +16,30 @@ const Sell = () => {
   const [themeMode, setThemeMode] = useState(true);
 
   // ========================= State =========================
+  const [searchProduct, setSearchProduct] = useState("");
+  const [products, setProducts] = useState([]);
+
+
   const [searchCustomer, setSearchCustomer] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(() => {
+    const storedCustomer = localStorage.getItem("selectedCustomer");
+    return storedCustomer ? JSON.parse(storedCustomer) : null;
+  });
+
   const [customers, setCustomers] = useState([]); // Danh sách khách hàng
   const [staffName, setStaffName] = useState("");
   const [currentDateTime, setCurrentDateTime] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [anchorEl, setAnchorEl] = useState(null);
-  const [cart, setCart] = useState([
-    { id: "SP000011", name: "Sữa tắm Palmolive xanh lá", price: 39000, quantity: 1 },
-    { id: "SP000012", name: "Sữa tắm Palmolive xanh lá", price: 14000, quantity: 3 },
-  ]);
+  const [cart, setCart] = useState(() => {
+    const storedCart = localStorage.getItem("cart");
+    return storedCart ? JSON.parse(storedCart) : [];
+  });
+
+
+  const [customerPay, setCustomerPay] = useState(0);
+  const [change, setChange] = useState(0);
+
 
   const cashSuggestions = [10000, 20000, 50000, 100000, 200000, 500000];
 
@@ -98,6 +112,22 @@ const Sell = () => {
     navigate("/admin/dashboard"); // thay bằng đường dẫn mong muốn, ví dụ: /admin, /dashboard
   };
 
+  const addToCart = (product) => {
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map((item) =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      } else {
+        return [...prevCart, { ...product, quantity: 1 }];
+      }
+    });
+    setSearchProduct(""); // Xóa ô tìm kiếm sau khi chọn
+  };
+
+
+
   // ===================== Tính toán =====================
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
@@ -108,6 +138,11 @@ const Sell = () => {
       c.phone.toLowerCase().includes(keyword)
     );
   });
+
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(searchProduct.toLowerCase())
+  );
+
 
 
   // ===================== useEffect =====================
@@ -124,6 +159,15 @@ const Sell = () => {
       { id: 1, name: "Nguyễn Văn A", phone: "0901234567" },
       { id: 2, name: "Trần Thị B", phone: "0912345678" },
       { id: 3, name: "Lê Văn C", phone: "0987654321" },
+    ]);
+
+    // Danh sách sản phẩm mẫu
+    setProducts([
+      { id: "SP000011", name: "Sữa tắm Palmolive xanh lá", price: 39000 },
+      { id: "SP000012", name: "Sữa tắm Palmolive cam", price: 14000 },
+      { id: "SP000013", name: "Kem đánh răng Colgate", price: 22000 },
+      { id: "SP000014", name: "Dầu gội Clear", price: 45000 },
+      { id: "SP000015", name: "Sữa rửa mặt Pond's", price: 39000 },
     ]);
 
     // Cập nhật tên nhân viên từ user
@@ -161,18 +205,55 @@ const Sell = () => {
     };
   }, [context, user, themeMode]); // thêm 'user' vào dependency để cập nhật khi user thay đổi
 
+  useEffect(() => {
+    setChange(customerPay - totalAmount);
+  }, [customerPay, totalAmount]);
+
+  useEffect(() => {
+    localStorage.setItem("cart", JSON.stringify(cart));
+    if (selectedCustomer) {
+      localStorage.setItem("selectedCustomer", JSON.stringify(selectedCustomer));
+    }
+  }, [cart, selectedCustomer]);
+
 
   return (
-    <div className="vh-100 d-flex flex-column">
+    <div className="vh-100 d-flex flex-column" style={{ fontSize: '0.8rem' }}>
       {/* Header */}
       <nav className="navbar navbar-dark bg-primary px-3">
         <div className="d-flex align-items-center">
           {/* Tìm sản phẩm */}
-          <input
-            className="form-control mr-2"
-            style={{ width: "350px" }}
-            placeholder="Tìm sản phẩm..."
-          />
+          <div className="position-relative mr-2" style={{ width: "350px" }}>
+            <input
+              className="form-control"
+              placeholder="Tìm sản phẩm..."
+              value={searchProduct}
+              onChange={(e) => setSearchProduct(e.target.value)}
+            />
+
+            {searchProduct && filteredProducts.length > 0 && (
+              <ul
+                className="list-group position-absolute w-100"
+                style={{ zIndex: 1000, top: "100%", left: 0 }}
+              >
+                {filteredProducts.map((product) => (
+                  <li
+                    key={product.id}
+                    className="list-group-item list-group-item-action"
+                    onClick={() => addToCart(product)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="d-flex justify-content-between">
+                      <span>{product.name}</span>
+                      <strong>{product.price.toLocaleString()}đ</strong>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+
 
           {/* Nút Hóa đơn với nút xóa nhỏ */}
           <div className="position-relative mr-2">
@@ -277,14 +358,19 @@ const Sell = () => {
                   <span className="flex-grow-1">{item.name}</span>
                   <div className="d-flex align-items-center">
                     <button onClick={() => handleDecrease(item.id)} className="btn btn-sm btn-outline-secondary mr-2">-</button>
-                    <span className="mx-1">{item.quantity}</span>
+                    <span className="mx-1" style={{ minWidth: '25px', textAlign: 'center' }}>{item.quantity}</span>
                     <button onClick={() => handleIncrease(item.id)} className="btn btn-sm btn-outline-secondary mr-3">+</button>
-                    <span className="mr-3">{item.price.toLocaleString()}</span>
-                    <strong className="mr-3">{(item.price * item.quantity).toLocaleString()}</strong>
+                    <span className="mr-3" style={{ minWidth: '80px', textAlign: 'right' }}>
+                      {item.price.toLocaleString()}
+                    </span>
+                    <strong className="mr-3" style={{ minWidth: '100px', textAlign: 'right' }}>
+                      {(item.price * item.quantity).toLocaleString()}
+                    </strong>
                   </div>
+
                 </div>
               ))}
-              {cart.length === 0 && <p className="text-muted">Không có sản phẩm trong giỏ.</p>}
+              {cart.length === 0 && <p className="text-muted text-center">Không có sản phẩm trong giỏ.</p>}
             </div>
             {/* Ghi chú đơn hàng */}
             <div className="p-2 bg-light border-top mt-auto">
@@ -300,7 +386,7 @@ const Sell = () => {
             <div className="flex-grow-1 p-3 d-flex flex-column overflow-auto">
 
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <span><strong>{staffName}</strong></span>
+                <span><strong></strong></span>
                 <span>{currentDateTime}</span>
               </div>
 
@@ -352,7 +438,10 @@ const Sell = () => {
                     </div>
                     <button
                       className="btn btn-sm btn-outline-danger ml-3"
-                      onClick={() => setSelectedCustomer(null)}
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        localStorage.removeItem("selectedCustomer");
+                      }}
                     >
                       ×
                     </button>
@@ -378,10 +467,18 @@ const Sell = () => {
                 <span>Khách thanh toán:</span>
                 <input
                   className="form-control w-auto"
-                  value={totalAmount.toLocaleString()}
+                  type="number"
+                  value={customerPay === 0 ? "" : customerPay}
+                  onChange={(e) => setCustomerPay(Number(e.target.value))}
                 />
 
               </div>
+
+              <div className="mb-2 d-flex justify-content-between font-weight-bold text-success">
+                <span>Tiền trả lại khách:</span>
+                <span>{change > 0 ? change.toLocaleString() : 0}</span>
+              </div>
+
 
               <div className="mb-3">
                 <div className="mb-2">Phương thức thanh toán:</div>
