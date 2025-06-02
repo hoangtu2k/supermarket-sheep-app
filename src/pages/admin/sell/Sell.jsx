@@ -21,9 +21,9 @@ const Sell = () => {
   const [staffName, setStaffName] = useState("");
   const [currentDateTime, setCurrentDateTime] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState(() => {
-    const saved = localStorage.getItem("paymentMethod");
-    return saved || "cash";
+  const [paymentMethods, setPaymentMethods] = useState(() => {
+    const saved = localStorage.getItem("paymentMethods");
+    return saved ? JSON.parse(saved) : { 1: "cash" };
   });
   const [customerPay, setCustomerPay] = useState(() => {
     const saved = localStorage.getItem("customerPay");
@@ -36,7 +36,7 @@ const Sell = () => {
   });
   const [currentInvoiceId, setCurrentInvoiceId] = useState(() => {
     const savedId = localStorage.getItem("currentInvoiceId");
-    return savedId || invoices[0]?.id || 1;
+    return savedId ? savedId : 1;
   });
   const [carts, setCarts] = useState(() => {
     const storedCarts = localStorage.getItem("carts");
@@ -101,7 +101,7 @@ const Sell = () => {
         ? selectedCustomers[currentInvoiceId].id
         : null,
       amount: totalAmount,
-      paymentMethod: paymentMethod,
+      paymentMethod: paymentMethods[currentInvoiceId] || "cash",
     };
     console.log("Gửi dữ liệu đơn hàng:", orderData);
   };
@@ -115,7 +115,10 @@ const Sell = () => {
   };
 
   const handlePaymentChange = (value) => {
-    setPaymentMethod(value);
+    setPaymentMethods((prev) => ({
+      ...prev,
+      [currentInvoiceId]: value,
+    }));
   };
 
   const handleOpenMenu = (event) => {
@@ -157,6 +160,10 @@ const Sell = () => {
   };
 
   const handleCreateNewInvoice = () => {
+    if (invoices.length >= 10) {
+      alert("Đã đạt tối đa 10 hóa đơn!");
+      return;
+    }
     const newId = invoices.length ? Math.max(...invoices.map((i) => i.id)) + 1 : 1;
     setInvoices([...invoices, { id: newId, name: `Hóa đơn ${newId}` }]);
     setCurrentInvoiceId(newId);
@@ -168,11 +175,22 @@ const Sell = () => {
       ...prev,
       [newId]: null,
     }));
+    setPaymentMethods((prev) => ({
+      ...prev,
+      [newId]: "cash",
+    }));
   };
 
   const handleDeleteInvoice = (id) => {
     if (invoices.length === 1) {
-      alert("Bạn không thể xóa hóa đơn cuối cùng!");
+      // If deleting the last invoice, reset to a new "Hóa đơn 1"
+      const newId = 1;
+      setInvoices([{ id: newId, name: "Hóa đơn 1" }]);
+      setCurrentInvoiceId(newId);
+      setCarts({ [newId]: [] }); // Clear cart and set new empty cart
+      setSelectedCustomers({ [newId]: null }); // Reset selected customer
+      setPaymentMethods({ [newId]: "cash" }); // Default to "cash"
+      setCustomerPay(0); // Reset customer payment
       return;
     }
     setInvoices((prev) => prev.filter((inv) => inv.id !== id));
@@ -185,6 +203,11 @@ const Sell = () => {
       const newSelected = { ...prev };
       delete newSelected[id];
       return newSelected;
+    });
+    setPaymentMethods((prev) => {
+      const newPayments = { ...prev };
+      delete newPayments[id];
+      return newPayments;
     });
     if (currentInvoiceId === id) {
       const newInvoice = invoices.find((inv) => inv.id !== id);
@@ -222,6 +245,7 @@ const Sell = () => {
       setCurrentInvoiceId(newId);
       setCarts((prev) => ({ ...prev, [newId]: [] }));
       setSelectedCustomers((prev) => ({ ...prev, [newId]: null }));
+      setPaymentMethods((prev) => ({ ...prev, [newId]: "cash" }));
     }
   }, []);
 
@@ -286,9 +310,9 @@ const Sell = () => {
     localStorage.setItem("selectedCustomers", JSON.stringify(selectedCustomers));
     localStorage.setItem("currentInvoiceId", currentInvoiceId);
     localStorage.setItem("invoices", JSON.stringify(invoices));
-    localStorage.setItem("paymentMethod", paymentMethod);
+    localStorage.setItem("paymentMethods", JSON.stringify(paymentMethods));
     localStorage.setItem("customerPay", customerPay);
-  }, [carts, selectedCustomers, currentInvoiceId, invoices, paymentMethod, customerPay]);
+  }, [carts, selectedCustomers, currentInvoiceId, invoices, paymentMethods, customerPay]);
 
   return (
     <div className="vh-100 d-flex flex-column" style={{ fontSize: "0.8rem" }}>
@@ -577,7 +601,7 @@ const Sell = () => {
                       type="radio"
                       name="payment"
                       value="cash"
-                      checked={paymentMethod === "cash"}
+                      checked={paymentMethods[currentInvoiceId] === "cash"}
                       onChange={() => handlePaymentChange("cash")}
                     />
                     <span className="ml-2">Tiền mặt</span>
@@ -588,18 +612,19 @@ const Sell = () => {
                       type="radio"
                       name="payment"
                       value="bank"
-                      checked={paymentMethod === "bank"}
+                      checked={paymentMethods[currentInvoiceId] === "bank"}
                       onChange={() => handlePaymentChange("bank")}
                     />
                     <span className="ml-2">Chuyển khoản</span>
                   </label>
                 </div>
-                {paymentMethod === "cash" && (
+                {paymentMethods[currentInvoiceId] === "cash" && (
                   <div className="bg-white border rounded mt-3 p-2 d-flex flex-wrap">
                     {cashSuggestions.map((amount) => (
                       <button
                         key={amount}
                         className="btn btn-outline-secondary btn-sm m-1"
+                        onClick={() => setCustomerPay(amount)}
                       >
                         {amount.toLocaleString()}
                       </button>
@@ -607,7 +632,7 @@ const Sell = () => {
                   </div>
                 )}
               </div>
-              {paymentMethod === "bank" && (
+              {paymentMethods[currentInvoiceId] === "bank" && (
                 <div className="text-muted small text-center">
                   Bạn chưa có tài khoản ngân hàng
                   <div className="text-primary cursor-pointer">+ Thêm tài khoản</div>
