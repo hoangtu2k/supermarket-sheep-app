@@ -7,6 +7,6 @@ export const productService = {
     getProductById: (id) => axios.get(`${API_BASE}/${id}`),
     createProduct: (product) => axios.post(API_BASE, product),
     updateProduct: (id, product) => axios.put(`${API_BASE}/${id}`, product),
-    deleteProduct:  (id) => axios.put(`${API_BASE}/${id}/status?status=0`),
-    resetProduct:  (id) => axios.put(`${API_BASE}/${id}/status?status=1`)
+    deleteProduct:  (id) => axios.put(`${API_BASE}/${id}/status?status=INACTIVE`),
+    resetProduct:  (id) => axios.put(`${API_BASE}/${id}/status?status=ACTIVE`)
 };
