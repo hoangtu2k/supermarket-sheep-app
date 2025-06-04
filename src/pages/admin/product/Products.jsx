@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Modal, Box, Typography, FormControl, MenuItem, Pagination, Select, CircularProgress } from '@mui/material';
+import { Button, Modal, Box, Typography, FormControl, MenuItem, Pagination, Select, CircularProgress, Tooltip } from '@mui/material';
 import Swal from 'sweetalert2';
 import { toast } from 'react-toastify';
 import { FaEye, FaPencilAlt } from 'react-icons/fa';
@@ -10,6 +10,7 @@ import { MyContext } from '../../../App';
 import { AuthContext } from '../../../context/AuthProvider';
 import { productService } from '../../../services/productService';
 import axios from '../../../services/axiosConfig';
+import { Warning } from '@mui/icons-material';
 
 const styleImport = {
   position: 'absolute',
@@ -26,6 +27,9 @@ const styleImport = {
   p: 4,
   borderRadius: '8px',
 };
+
+const LOW_STOCK_THRESHOLD = 10; // Threshold for low stock warning
+const OUT_OF_STOCK = 0; // Threshold for out of stock warning
 
 const Products = () => {
   const navigate = useNavigate();
@@ -278,7 +282,20 @@ const Products = () => {
                           </div>
                         </div>
                       </td>
-                      <td>{product.quantity}</td>
+                      <td>
+                        <div className="d-flex align-items-center">
+                          <span>{product.quantity}</span>
+                          {product.quantity === OUT_OF_STOCK ? (
+                            <Tooltip title="Hết hàng" placement="right">
+                              <Warning sx={{ ml: 2, color: 'red' }} />
+                            </Tooltip>
+                          ) : product.quantity <= LOW_STOCK_THRESHOLD ? (
+                            <Tooltip title={`Sắp hết hàng: Còn ${product.quantity} (dưới ngưỡng ${LOW_STOCK_THRESHOLD})`} placement="right">
+                              <Warning sx={{ ml: 2, color: '#ffca28' }} />
+                            </Tooltip>
+                          ) : null}
+                        </div>
+                      </td>
                       <td>{product.status}</td>
                       <td>
                         <div className="actions d-flex align-items-center">

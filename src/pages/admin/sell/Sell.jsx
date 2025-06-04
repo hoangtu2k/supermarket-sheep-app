@@ -152,15 +152,13 @@ const Sell = () => {
       createdAt: new Date().toISOString(),
       status: paymentMethods[currentInvoiceId] === "cash" ? "PAID" : "PENDING",
       totalAmount: Number(totalAmount.toFixed(2)),
-      customerName: selectedCustomers[currentInvoiceId]?.name || null,
-      customerEmail: selectedCustomers[currentInvoiceId]?.email || null,
       customerId: selectedCustomers[currentInvoiceId]?.id || null,
       items: currentCart.map((item) => ({
         productId: item.id,
         quantity: item.quantity,
         unitPrice: Number(item.price.toFixed(2)),
         subtotal: Number((item.price * item.quantity).toFixed(2)),
-        unit: item.selectedUnit, // Include unit for conversionRate
+        unit: item.selectedUnit,
       })),
     };
 
@@ -168,26 +166,49 @@ const Sell = () => {
       const response = await sellService.submitOrder(orderData);
       console.log("Đơn hàng đã được gửi:", response.data);
 
-      // Reset state after successful submission
-      setCarts((prev) => ({
-        ...prev,
-        [currentInvoiceId]: [],
-      }));
-      setSelectedCustomers((prev) => ({
-        ...prev,
-        [currentInvoiceId]: null,
-      }));
-      setCustomerPay(0);
-      setPaymentMethods((prev) => ({
-        ...prev,
-        [currentInvoiceId]: "cash",
-      }));
+      // After successful submission, remove the current invoice
+      setInvoices((prev) => {
+        const newInvoices = prev.filter((inv) => inv.id !== currentInvoiceId);
+        
+        // If no invoices remain, reset to a new "Hóa đơn 1"
+        if (newInvoices.length === 0) {
+          const newId = 1;
+          setCarts({ [newId]: [] });
+          setSelectedCustomers({ [newId]: null });
+          setPaymentMethods({ [newId]: "cash" });
+          setCustomerPay(0);
+          setCurrentInvoiceId(newId);
+          return [{ id: newId, name: "Hóa đơn 1" }];
+        } else {
+          // Select the first available invoice
+          setCurrentInvoiceId(newInvoices[0].id);
+          // Clear the current invoice's data
+          setCarts((prevCarts) => {
+            const newCarts = { ...prevCarts };
+            delete newCarts[currentInvoiceId];
+            return newCarts;
+          });
+          setSelectedCustomers((prev) => {
+            const newSelected = { ...prev };
+            delete newSelected[currentInvoiceId];
+            return newSelected;
+          });
+          setPaymentMethods((prev) => {
+            const newPayments = { ...prev };
+            delete newPayments[currentInvoiceId];
+            return newPayments;
+          });
+          setCustomerPay(0);
+          return newInvoices;
+        }
+      });
+
       alert("Thanh toán thành công!");
     } catch (error) {
       console.error("Lỗi khi gửi đơn hàng:", error);
       const errorMessage =
         error.response?.status === 400 && error.response?.data?.message
-          ? error.response.data.message // e.g., "Insufficient stock for product X"
+          ? error.response.data.message
           : "Có lỗi xảy ra khi thanh toán. Vui lòng thử lại.";
       alert(errorMessage);
     }
@@ -234,7 +255,7 @@ const Sell = () => {
       const requiredQuantity = (existingItem ? existingItem.quantity + 1 : 1) * selectedDetail.conversionRate;
       if (product.quantity < requiredQuantity) {
         alert(`Sản phẩm ${product.name} không đủ tồn kho. Còn lại: ${product.quantity}`);
-        return;
+        return prevCarts;
       }
       let updatedCart;
       const defaultDetails = product.productDetails.length > 0
