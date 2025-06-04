@@ -42,10 +42,10 @@ const Sidebar = () => {
                 <ul>
                     <li>
                         <Link to="/admin/dashboard">
-                        <Button className={`w-100 ${activeTab === 0 ? 'active' : ''}`}>
-  <span className="icon"><FaChartPie /></span>
-  Tổng quan
-</Button>
+                            <Button className={`w-100 ${activeTab === 0 ? 'active' : ''}`}>
+                                <span className="icon"><FaChartPie /></span>
+                                Tổng quan
+                            </Button>
 
                         </Link>
                     </li>
@@ -104,7 +104,7 @@ const Sidebar = () => {
 
                         <div className={`submenuWrapper ${activeTab === 4 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
-                                <li><Link to="/admin/customer">Khách hàng</Link></li>
+                                <li><Link to="/admin/customers">Khách hàng</Link></li>
                                 <li><Link to="/admin/supplier">Nhà cung cấp</Link></li>
                             </ul>
                         </div>

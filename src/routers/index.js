@@ -1,6 +1,7 @@
 import Login from "../pages/admin/Login";
 import SignUp from "../pages/admin/Signup";
 import Products from "../pages/admin/product/Products";
+import Customers from "../pages/admin/customer/Customers";
 import ProductUpload from "../pages/admin/product/ProductUpload";
 import ProductUpdate from "../pages/admin/product/ProductUpdate";
 import Supplier from "../pages/admin/Supplier";
@@ -23,6 +24,10 @@ const publicRouters = [
         { path: '/admin/products', component: Products, private: true},
         { path: '/admin/product-upload', component: ProductUpload, private: true},
         { path: '/admin/product-update/:id', component: ProductUpdate , private: true},
+
+        { path: '/admin/customers', component: Customers, private: true},
+
+
         { path: '/admin/supplier', component: Supplier, private: true},
         { path: '/admin/users', component: User, private: true},
         { path: '/admin/importslips', component: ImportSlips, private: true},
