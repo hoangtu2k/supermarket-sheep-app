@@ -1,27 +1,28 @@
-
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { MyContext } from "../../../App";
 import { AuthContext } from "../../../context/AuthProvider";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Menu, MenuItem, ListItemIcon, Button } from "@mui/material";
 import Logout from "@mui/icons-material/Logout";
 import { FaUser } from "react-icons/fa";
 import { productService } from "../../../services/productService";
 import { customerService } from "../../../services/customerService";
 import { sellService } from "../../../services/sellService";
+import { unitService } from "../../../services/unitService";
 import "../../../styles/sell.css";
 
 const Sell = () => {
   const navigate = useNavigate();
   const context = useContext(MyContext);
   const { user, logout } = useContext(AuthContext);
-  const [themeMode, setThemeMode] = useState(true);
+  const [themeMode] = useState(true);
 
-  // ========================= State =========================
+  // State
   const [searchProduct, setSearchProduct] = useState("");
   const [products, setProducts] = useState([]);
   const [searchCustomer, setSearchCustomer] = useState("");
   const [customers, setCustomers] = useState([]);
+  const [units, setUnits] = useState([]);
   const [staffName, setStaffName] = useState("");
   const [currentDateTime, setCurrentDateTime] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
@@ -40,18 +41,18 @@ const Sell = () => {
   });
   const [currentInvoiceId, setCurrentInvoiceId] = useState(() => {
     const savedId = localStorage.getItem("currentInvoiceId");
-    return savedId ? savedId : 1;
+    return savedId ? Number(savedId) : 1;
   });
   const [carts, setCarts] = useState(() => {
     const storedCarts = localStorage.getItem("carts");
-    const parsedCarts = storedCarts ? JSON.parse(storedCarts) : { [currentInvoiceId || 1]: [] };
+    const parsedCarts = storedCarts ? JSON.parse(storedCarts) : { 1: [] };
     Object.keys(parsedCarts).forEach((key) => {
       parsedCarts[key] = parsedCarts[key].map((item) => ({
         ...item,
         productDetails: Array.isArray(item.productDetails)
           ? item.productDetails
-          : [{ id: `default-${item.id}`, code: `PD-${item.id}`, unit: "CAN", price: 0, conversionRate: 1 }],
-        selectedUnit: item.selectedUnit || (Array.isArray(item.productDetails) && item.productDetails[0]?.unit) || "CAN",
+          : [{ id: `default-${item.id}`, code: `PD-${item.id}`, unitId: null, price: 0, conversionRate: 1 }],
+        selectedUnitId: item.selectedUnitId || (Array.isArray(item.productDetails) && item.productDetails[0]?.unitId) || null,
         price: Number(item.price) || 0,
       }));
     });
@@ -67,15 +68,22 @@ const Sell = () => {
 
   const cashSuggestions = [10000, 20000, 50000, 100000, 200000, 500000];
 
-  // Unit display mapping
-  const unitDisplayMap = {
-    CAN: "Hộp/Lon",
-    PACK: "Bịch/Lốc",
-    CASE: "Thùng",
-  };
-
-  // ===================== Sự kiện ===================== 
+  // Sự kiện
   const open = Boolean(anchorEl);
+
+  // Tải danh sách Unit từ backend
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const response = await unitService.getAllUnit();
+        setUnits(response.data);
+      } catch (error) {
+        console.error("Error fetching units:", error);
+        alert("Không thể tải danh sách đơn vị");
+      }
+    };
+    fetchUnits();
+  }, []);
 
   const handleAddCustomer = () => {
     alert("Thêm khách hàng mới");
@@ -84,13 +92,24 @@ const Sell = () => {
   const handleIncrease = (id) => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
-      const updatedCart = currentCart.map((item) =>
-        item.id === id ? { ...item, quantity: item.quantity + 1 } : item
-      );
-      return {
-        ...prevCarts,
-        [currentInvoiceId]: updatedCart,
-      };
+      const updatedCart = currentCart.map((item) => {
+        if (item.id === id) {
+          const product = products.find((p) => p.id === item.id);
+          if (!product) {
+            alert(`Không tìm thấy sản phẩm ${item.name}`);
+            return item;
+          }
+          const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === item.selectedUnitId) || { conversionRate: 1 };
+          const requiredQuantity = (item.quantity + 1) * (selectedDetail.conversionRate || 1);
+          if (product.quantity < requiredQuantity) {
+            alert(`Sản phẩm ${item.name} không đủ tồn kho. Còn lại: ${product.quantity}`);
+            return item;
+          }
+          return { ...item, quantity: item.quantity + 1 };
+        }
+        return item;
+      });
+      return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
 
@@ -98,14 +117,9 @@ const Sell = () => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.map((item) =>
-        item.id === id && item.quantity > 1
-          ? { ...item, quantity: item.quantity - 1 }
-          : item
+        item.id === id && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
       );
-      return {
-        ...prevCarts,
-        [currentInvoiceId]: updatedCart,
-      };
+      return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
 
@@ -113,31 +127,25 @@ const Sell = () => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.filter((item) => item.id !== id);
-      return {
-        ...prevCarts,
-        [currentInvoiceId]: updatedCart,
-      };
+      return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
 
-  const handleUnitChange = (id, newUnit) => {
+  const handleUnitChange = (id, newUnitId) => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.map((item) => {
         if (item.id === id) {
-          const selectedDetail = (item.productDetails || []).find((detail) => detail.unit === newUnit) || { price: 0 };
+          const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === parseInt(newUnitId)) || { price: 0 };
           return {
             ...item,
-            selectedUnit: newUnit,
+            selectedUnitId: parseInt(newUnitId),
             price: Number(selectedDetail.price) || 0,
           };
         }
         return item;
       });
-      return {
-        ...prevCarts,
-        [currentInvoiceId]: updatedCart,
-      };
+      return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
 
@@ -148,30 +156,44 @@ const Sell = () => {
       return;
     }
 
+    // Kiểm tra tính hợp lệ của các mục trong giỏ
+    for (const item of currentCart) {
+      if (!item.selectedUnitId) {
+        alert(`Vui lòng chọn đơn vị cho sản phẩm ${item.name}`);
+        return;
+      }
+      const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === item.selectedUnitId);
+      if (!selectedDetail || !selectedDetail.id) {
+        alert(`Không tìm thấy chi tiết sản phẩm cho đơn vị đã chọn của ${item.name}`);
+        return;
+      }
+    }
+
     const orderData = {
       billCode: `INV-${currentInvoiceId}-${Date.now()}`,
       createdAt: new Date().toISOString(),
       status: paymentMethods[currentInvoiceId] === "cash" ? "PAID" : "PENDING",
       totalAmount: Number(totalAmount.toFixed(2)),
       customerId: selectedCustomers[currentInvoiceId]?.id || null,
-      items: currentCart.map((item) => ({
-        productId: item.id,
-        quantity: item.quantity,
-        unitPrice: Number(item.price.toFixed(2)),
-        subtotal: Number((item.price * item.quantity).toFixed(2)),
-        unit: item.selectedUnit,
-      })),
+      items: currentCart.map((item) => {
+        const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === item.selectedUnitId);
+        return {
+          productDetailsId: selectedDetail.id, // Gửi productDetailsId thay vì productId
+          quantity: item.quantity,
+          unitPrice: Number(item.price.toFixed(2)),
+          subtotal: Number((item.price * item.quantity).toFixed(2)),
+          unitId: item.selectedUnitId,
+        };
+      }),
     };
 
     try {
       const response = await sellService.submitOrder(orderData);
       console.log("Đơn hàng đã được gửi:", response.data);
 
-      // After successful submission, remove the current invoice
+      // Xóa hóa đơn hiện tại sau khi gửi thành công
       setInvoices((prev) => {
         const newInvoices = prev.filter((inv) => inv.id !== currentInvoiceId);
-
-        // If no invoices remain, reset to a new "Hóa đơn 1"
         if (newInvoices.length === 0) {
           const newId = 1;
           setCarts({ [newId]: [] });
@@ -181,9 +203,7 @@ const Sell = () => {
           setCurrentInvoiceId(newId);
           return [{ id: newId, name: "Hóa đơn 1" }];
         } else {
-          // Select the first available invoice
           setCurrentInvoiceId(newInvoices[0].id);
-          // Clear the current invoice's data
           setCarts((prevCarts) => {
             const newCarts = { ...prevCarts };
             delete newCarts[currentInvoiceId];
@@ -252,17 +272,14 @@ const Sell = () => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const existingItem = currentCart.find((item) => item.id === product.id);
-      const selectedDetail = product.productDetails.find((d) => d.unit === (existingItem?.selectedUnit || product.productDetails[0].unit));
-      const requiredQuantity = (existingItem ? existingItem.quantity + 1 : 1) * selectedDetail.conversionRate;
+      const defaultDetail = product.productDetails[0] || { id: null, unitId: null, price: 0, conversionRate: 1 };
+      const selectedDetail = product.productDetails.find((d) => d.unitId === (existingItem?.selectedUnitId || defaultDetail.unitId)) || defaultDetail;
+      const requiredQuantity = (existingItem ? existingItem.quantity + 1 : 1) * (selectedDetail.conversionRate || 1);
       if (product.quantity < requiredQuantity) {
         alert(`Sản phẩm ${product.name} không đủ tồn kho. Còn lại: ${product.quantity}`);
         return prevCarts;
       }
       let updatedCart;
-      const defaultDetails = product.productDetails.length > 0
-        ? product.productDetails
-        : [{ id: `default-${product.id}`, code: `PD-${product.id}`, unit: "CAN", price: 0, conversionRate: 1 }];
-      const defaultDetail = defaultDetails[0];
       if (existingItem) {
         updatedCart = currentCart.map((item) =>
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
@@ -273,16 +290,13 @@ const Sell = () => {
           {
             ...product,
             quantity: 1,
-            selectedUnit: defaultDetail.unit,
+            selectedUnitId: defaultDetail.unitId,
             price: Number(defaultDetail.price),
-            productDetails: defaultDetails,
+            productDetails: product.productDetails,
           },
         ];
       }
-      return {
-        ...prevCarts,
-        [currentInvoiceId]: updatedCart,
-      };
+      return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
     setSearchProduct("");
   };
@@ -295,18 +309,9 @@ const Sell = () => {
     const newId = invoices.length ? Math.max(...invoices.map((i) => i.id)) + 1 : 1;
     setInvoices([...invoices, { id: newId, name: `Hóa đơn ${newId}` }]);
     setCurrentInvoiceId(newId);
-    setCarts((prevCarts) => ({
-      ...prevCarts,
-      [newId]: [],
-    }));
-    setSelectedCustomers((prev) => ({
-      ...prev,
-      [newId]: null,
-    }));
-    setPaymentMethods((prev) => ({
-      ...prev,
-      [newId]: "cash",
-    }));
+    setCarts((prevCarts) => ({ ...prevCarts, [newId]: [] }));
+    setSelectedCustomers((prev) => ({ ...prev, [newId]: null }));
+    setPaymentMethods((prev) => ({ ...prev, [newId]: "cash" }));
   };
 
   const handleDeleteInvoice = (id) => {
@@ -346,7 +351,7 @@ const Sell = () => {
     setCurrentInvoiceId(id);
   };
 
-  // ===================== Tính toán =====================
+  // Tính toán
   const totalAmount = (carts[currentInvoiceId] || []).reduce(
     (sum, item) => sum + (item.price || 0) * item.quantity,
     0
@@ -354,17 +359,14 @@ const Sell = () => {
 
   const filteredCustomers = customers.filter((c) => {
     const keyword = searchCustomer?.toLowerCase() || "";
-    return (
-      c.name.toLowerCase().includes(keyword) ||
-      c.phone?.toLowerCase().includes(keyword)
-    );
+    return c.name.toLowerCase().includes(keyword) || c.phone?.toLowerCase().includes(keyword);
   });
 
   const filteredProducts = products.filter((product) =>
-    product.name?.toLowerCase().includes(searchProduct?.toLowerCase() || "")
+    (product.name || "").toLowerCase().includes((searchProduct || "").toLowerCase())
   );
 
-  // ===================== useEffect =====================
+  // useEffect
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "F1") {
@@ -382,10 +384,7 @@ const Sell = () => {
     };
 
     window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleSubmitOrder]);
 
   useEffect(() => {
@@ -403,19 +402,19 @@ const Sell = () => {
     const fetchProducts = async () => {
       try {
         const response = await productService.getAllProducts();
-        console.log("API Response (Products):", JSON.stringify(response.data, null, 2));
         const transformedProducts = response.data.map((product) => ({
-          id: product.id.toString(),
+          id: (product.id || "").toString(),
           name: product.name || "Unknown Product",
+          quantity: product.quantity || 0,
           productDetails: Array.isArray(product.productDetails)
             ? product.productDetails.map((detail) => ({
-              id: detail.id,
-              code: detail.code,
-              unit: detail.unit,
-              price: Number(detail.price) || 0,
-              conversionRate: detail.conversionRate || 1,
-            }))
-            : [{ id: `default-${product.id}`, code: `PD-${product.id}`, unit: "CAN", price: 0, conversionRate: 1 }],
+                id: detail.id || `default-${product.id}`,
+                code: detail.code || `PD-${product.id}`,
+                unitId: detail.unitId || null,
+                price: Number(detail.price) || 0,
+                conversionRate: detail.conversionRate || 1,
+              }))
+            : [{ id: `default-${product.id}`, code: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
         }));
         setProducts(transformedProducts);
       } catch (error) {
@@ -427,7 +426,6 @@ const Sell = () => {
     const fetchCustomers = async () => {
       try {
         const response = await customerService.getAllCustomers();
-        console.log("API Response (Customers):", JSON.stringify(response.data, null, 2));
         const transformedCustomers = response.data.map((customer) => ({
           id: customer.id.toString(),
           name: customer.name || "Unknown Customer",
@@ -450,7 +448,7 @@ const Sell = () => {
     fetchProducts();
     fetchCustomers();
 
-    if (themeMode === true) {
+    if (themeMode) {
       document.body.classList.remove("dark");
       document.body.classList.add("light");
       localStorage.setItem("themeMode", "light");
@@ -494,10 +492,10 @@ const Sell = () => {
   useEffect(() => {
     localStorage.setItem("carts", JSON.stringify(carts));
     localStorage.setItem("selectedCustomers", JSON.stringify(selectedCustomers));
-    localStorage.setItem("currentInvoiceId", currentInvoiceId);
+    localStorage.setItem("currentInvoiceId", String(currentInvoiceId));
     localStorage.setItem("invoices", JSON.stringify(invoices));
     localStorage.setItem("paymentMethods", JSON.stringify(paymentMethods));
-    localStorage.setItem("customerPay", customerPay);
+    localStorage.setItem("customerPay", String(customerPay));
   }, [carts, selectedCustomers, currentInvoiceId, invoices, paymentMethods, customerPay]);
 
   return (
@@ -514,10 +512,7 @@ const Sell = () => {
               ref={productSearchRef}
             />
             {searchProduct && filteredProducts.length > 0 && (
-              <ul
-                className="list-group position-absolute w-100"
-                style={{ zIndex: 1000, top: "100%", left: 0 }}
-              >
+              <ul className="list-group position-absolute w-100" style={{ zIndex: 1000, top: "100%", left: 0 }}>
                 {filteredProducts.map((product) => (
                   <li
                     key={product.id}
@@ -536,7 +531,7 @@ const Sell = () => {
                         {product.productDetails[0]?.price
                           ? product.productDetails[0].price.toLocaleString()
                           : 0}
-                        đ ({unitDisplayMap[product.productDetails[0]?.unit] || product.productDetails[0]?.unit || "N/A"})
+                        đ ({units.find((u) => u.id === product.productDetails[0]?.unitId)?.name || "N/A"})
                       </strong>
                     </div>
                   </li>
@@ -546,11 +541,7 @@ const Sell = () => {
           </div>
           <div className="d-flex align-items-center">
             {invoices.map((inv) => (
-              <div
-                key={inv.id}
-                className="position-relative mr-2"
-                style={{ display: "inline-block" }}
-              >
+              <div key={inv.id} className="position-relative mr-2" style={{ display: "inline-block" }}>
                 <button
                   className={`btn ${currentInvoiceId === inv.id ? "btn-primary" : "btn-light"}`}
                   style={{
@@ -647,15 +638,14 @@ const Sell = () => {
       </nav>
 
       {/* Main */}
-      <div className="flex-grow-1 d-flex flex-column overflow-hidden" style={{ height: "100vh" }}>
+      <div className="flex-grow-1 d-flex flex-column overflow-hidden">
         <div className="row flex-grow-1 overflow-auto m-0">
           <div className="col-12 col-sm-8 d-flex flex-column p-0">
             <div className="p-3 bg-white overflow-auto" style={{ maxHeight: "450px" }}>
-
               {/* Cart Header */}
               <div className="cart-header">
                 <div className="col-stt">STT</div>
-                <div className="col-remove"></div> {/* Empty space for remove button */}
+                <div className="col-remove"></div>
                 <div className="col-code">Mã SP</div>
                 <div className="col-name">Tên sản phẩm</div>
                 <div className="col-unit">Đơn vị</div>
@@ -674,48 +664,31 @@ const Sell = () => {
                   >
                     🗑
                   </button>
-                  <span className="col-code" title={item.productDetails[0]?.code || "N/A"}>
-                    {item.productDetails[0]?.code || "N/A"}
+                  <span className="col-code" title={(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.code || "N/A"}>
+                    {(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.code || "N/A"}
                   </span>
                   <span className="col-name" title={item.name}>
                     {item.name}
                   </span>
                   <select
                     className="form-control form-control-sm col-unit"
-                    value={item.selectedUnit}
+                    value={item.selectedUnitId || ""}
                     onChange={(e) => handleUnitChange(item.id, e.target.value)}
                   >
-                    {(() => {
-                      const availableUnits = (item.productDetails || []).map((detail) => ({
-                        id: detail.id,
-                        unit: detail.unit,
-                        price: detail.price,
-                      }));
-                      const allUnits = [
-                        { id: `default-can-${item.id}`, unit: "CAN", price: 0 },
-                        { id: `default-pack-${item.id}`, unit: "PACK", price: 0 },
-                        { id: `default-case-${item.id}`, unit: "CASE", price: 0 },
-                      ];
-                      const unitMap = new Map();
-                      availableUnits.forEach((u) => unitMap.set(u.unit, u));
-                      allUnits.forEach((u) => {
-                        if (!unitMap.has(u.unit)) unitMap.set(u.unit, u);
-                      });
-                      return Array.from(unitMap.values()).map((detail) => (
-                        <option key={detail.id} value={detail.unit}>
-                          {unitDisplayMap[detail.unit] || detail.unit}
-                        </option>
-                      ));
-                    })()}
+                    {(item.productDetails || []).map((detail) => (
+                      <option key={detail.unitId} value={detail.unitId}>
+                        {units.find((u) => u.id === detail.unitId)?.name || "N/A"}
+                      </option>
+                    ))}
                   </select>
-                  <div className="col-quantity">
+                  <div className="col-quantity d-flex align-items-center">
                     <button
                       onClick={() => handleDecrease(item.id)}
                       className="btn btn-sm btn-outline-secondary"
                     >
                       -
                     </button>
-                    <span>{item.quantity}</span>
+                    <span className="mx-2">{item.quantity}</span>
                     <button
                       onClick={() => handleIncrease(item.id)}
                       className="btn btn-sm btn-outline-secondary"
@@ -724,26 +697,21 @@ const Sell = () => {
                     </button>
                   </div>
                   <span className="col-price">{(item.price || 0).toLocaleString()}</span>
-                  <strong className="col-total">
-                    {((item.price || 0) * item.quantity).toLocaleString()}
-                  </strong>
+                  <strong className="col-total">{((item.price || 0) * item.quantity).toLocaleString()}</strong>
                 </div>
               ))}
               {(!carts[currentInvoiceId] || carts[currentInvoiceId].length === 0) && (
-                <p className="text-muted text-center">Không có sản phẩm trong giỏ.</p>
+                <p className="text-muted text-center">Không có sản phẩm trong giỏ hàng.</p>
               )}
             </div>
             <div className="p-2 bg-light border-top mt-auto">
-              <input
-                className="form-control p-4"
-                placeholder="Ghi chú cho đơn hàng..."
-              />
+              <input className="form-control p-2" placeholder="Ghi chú cho đơn hàng..." />
             </div>
           </div>
           <div className="col-12 col-sm-4 d-flex flex-column p-0 border-left bg-light">
             <div className="flex-grow-1 p-3 d-flex flex-column overflow-auto">
               <div className="d-flex justify-content-between align-items-center mb-2">
-                <span><strong></strong></span>
+                <span></span>
                 <span>{currentDateTime}</span>
               </div>
               <div className="position-relative w-100 mb-2">
@@ -751,7 +719,7 @@ const Sell = () => {
                   <input
                     type="text"
                     className="form-control form-control-sm"
-                    placeholder="Tìm khách (F4)"
+                    placeholder="Tìm khách hàng... (F4)"
                     value={searchCustomer}
                     onChange={(e) => setSearchCustomer(e.target.value)}
                     ref={customerSearchRef}
@@ -775,7 +743,9 @@ const Sell = () => {
                         style={{ cursor: "pointer" }}
                         onClick={() => handleSelectCustomer(customer)}
                       >
-                        <div><strong>{customer.name}</strong> - {customer.phone}</div>
+                        <div>
+                          <strong>{customer.name}</strong> - {customer.phone}
+                        </div>
                         <div className="text-muted small">Mã KH: {customer.id}</div>
                       </div>
                     ))}
@@ -788,18 +758,16 @@ const Sell = () => {
                         <strong>Khách đã chọn:</strong> {selectedCustomers[currentInvoiceId].name} (
                         {selectedCustomers[currentInvoiceId].phone})
                       </div>
-                      <div className="text-muted small">
-                        Mã KH: {selectedCustomers[currentInvoiceId].id}
-                      </div>
+                      <div className="text-muted small">Mã KH: {selectedCustomers[currentInvoiceId].id}</div>
                     </div>
                     <button
                       className="btn btn-sm btn-outline-danger ml-3"
-                      onClick={() => {
+                      onClick={() =>
                         setSelectedCustomers((prev) => ({
                           ...prev,
                           [currentInvoiceId]: null,
-                        }));
-                      }}
+                        }))
+                      }
                     >
                       ×
                     </button>
@@ -883,12 +851,12 @@ const Sell = () => {
             </div>
           </div>
         </div>
+        <div className="d-flex justify-content-around bg-white py-2 border-top">
+          <Button className="text-primary">⚡ Bán nhanh</Button>
+          <Button className="text-secondary">🚚 Bán giao</Button>
+        </div>
       </div>
-      <div className="d-flex justify-content-around bg-white py-2 border-top">
-        <Button className="text-primary font-weight-bold">⚡ Bán nhanh</Button>
-        <Button className="text-primary font-weight-bold">🚚 Bán giao hàng</Button>
-      </div>
-    </div >
+    </div>
   );
 };
 

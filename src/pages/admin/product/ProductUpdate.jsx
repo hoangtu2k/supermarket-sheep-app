@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
 import CircularProgress from "@mui/material/CircularProgress";
+import axios from "axios";
 
 const ProductUpdate = () => {
   const { id } = useParams();
@@ -16,6 +17,7 @@ const ProductUpdate = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState({});
+  const [units, setUnits] = useState([]); // State để lưu danh sách Unit
   const fileInputRef = useRef(null);
 
   const [productData, setProductData] = useState({
@@ -27,7 +29,7 @@ const ProductUpdate = () => {
       {
         id: null,
         code: "",
-        unit: "CAN",
+        unitId: "",
         conversionRate: 1,
         price: "",
       },
@@ -49,6 +51,21 @@ const ProductUpdate = () => {
 
   const [previewUrls, setPreviewUrls] = useState([]);
 
+  // Lấy danh sách Unit từ backend
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const response = await axios.get('/admin/units');
+        setUnits(response.data);
+      } catch (error) {
+        console.error("Error fetching units:", error);
+        Swal.fire('Lỗi', 'Không thể tải danh sách đơn vị', 'error');
+      }
+    };
+    fetchUnits();
+  }, []);
+
+  // Tải dữ liệu sản phẩm
   useEffect(() => {
     const fetchProduct = async () => {
       setIsLoading(true);
@@ -63,13 +80,21 @@ const ProductUpdate = () => {
           quantity: product.quantity || 0,
           productDetails: product.productDetails?.length
             ? product.productDetails.map((detail) => ({
-              id: detail.id,
-              code: detail.code || "",
-              unit: detail.unit || "CAN",
-              conversionRate: detail.conversionRate || 1,
-              price: detail.price ? detail.price.toString() : "", // Store as string
-            }))
-            : [{ id: null, code: "", unit: "CAN", conversionRate: 1, price: "" }],
+                id: detail.id,
+                code: detail.code || "",
+                unitId: detail.unitId || (units.length > 0 ? units[0].id : ""),
+                conversionRate: detail.conversionRate || 1,
+                price: detail.price ? detail.price.toString() : "",
+              }))
+            : [
+                {
+                  id: null,
+                  code: "",
+                  unitId: units.length > 0 ? units[0].id : "",
+                  conversionRate: 1,
+                  price: "",
+                },
+              ],
           mainImage: !!product.imageUrl,
           imageUrl: product.imageUrl || "",
           notMainImages: product.notMainImages || [],
@@ -97,12 +122,12 @@ const ProductUpdate = () => {
     return () => {
       previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [id]);
+  }, [id, units]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === "weight" && !/^\d*\.?\d*$/.test(value) && value !== "") return; // Chỉ cho phép số thập phân
-    if (name === "quantity" && !/^\d*$/.test(value) && value !== "") return; // Chỉ cho phép số nguyên
+    if (name === "weight" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
+    if (name === "quantity" && !/^\d*$/.test(value) && value !== "") return;
     setProductData((prev) => ({
       ...prev,
       [name]: value,
@@ -112,8 +137,8 @@ const ProductUpdate = () => {
 
   const handleDetailChange = (index, e) => {
     const { name, value } = e.target;
-    if (name === "conversionRate" && !/^\d*$/.test(value) && value !== "") return; // Chỉ số nguyên
-    if (name === "price" && !/^\d*\.?\d*$/.test(value) && value !== "") return; // Chỉ số thập phân
+    if (name === "conversionRate" && !/^\d*$/.test(value) && value !== "") return;
+    if (name === "price" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
     setProductData((prev) => {
       const newDetails = [...prev.productDetails];
       newDetails[index] = {
@@ -135,6 +160,7 @@ const ProductUpdate = () => {
     const lastDetail = productData.productDetails[productData.productDetails.length - 1];
     if (
       !lastDetail.code.trim() ||
+      !lastDetail.unitId ||
       !lastDetail.price ||
       parseFloat(lastDetail.price) <= 0 ||
       parseInt(lastDetail.conversionRate) < 1
@@ -146,7 +172,13 @@ const ProductUpdate = () => {
       ...prev,
       productDetails: [
         ...prev.productDetails,
-        { id: null, code: "", unit: "CAN", conversionRate: 1, price: "" },
+        {
+          id: null,
+          code: "",
+          unitId: units.length > 0 ? units[0].id : "",
+          conversionRate: 1,
+          price: "",
+        },
       ],
     }));
     setErrors((prev) => ({
@@ -202,10 +234,6 @@ const ProductUpdate = () => {
       ...prev,
       additional: [...prev.additional, ...files],
     }));
-    setProductData((prev) => ({
-      ...prev,
-      notMainImages: [...prev.notMainImages, ...newPreviews],
-    }));
   };
 
   const removeImage = (type, index) => {
@@ -237,60 +265,64 @@ const ProductUpdate = () => {
   };
 
   const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
+  const newErrors = {};
+  let isValid = true;
 
-    if (!productData.name.trim()) {
-      newErrors.name = "Tên sản phẩm là bắt buộc";
+  if (!productData.name.trim()) {
+    newErrors.name = "Tên sản phẩm là bắt buộc";
+    isValid = false;
+  }
+
+  if (!imagePreviews.main && !productData.imageUrl) {
+    newErrors.mainImage = "Ảnh chính là bắt buộc";
+    isValid = false;
+  }
+
+  const detailErrors = productData.productDetails?.map((detail, index) => {
+    const errors = {};
+    if (!detail.code.trim()) {
+      errors.code = "Mã code là bắt buộc";
+      isValid = false;
+    } else if (detail.code.length > 50) { // Sửa từ > 0 thành > 50
+      errors.code = "Mã code không được vượt quá 50 ký tự";
       isValid = false;
     }
-
-    if (!imagePreviews.main && !productData.imageUrl) {
-      newErrors.mainImage = "Ảnh chính là bắt buộc";
+    if (!detail.unitId) {
+      errors.unitId = "Đơn vị là bắt buộc";
       isValid = false;
     }
-
-    const detailErrors = productData.productDetails.map((detail, index) => {
-      const errors = {};
-      if (!detail.code.trim()) {
-        errors.code = "Mã code là bắt buộc";
-        isValid = false;
-      } else if (detail.code.length > 50) {
-        errors.code = "Mã code không được vượt quá 50 ký tự";
-        isValid = false;
-      }
-      if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
-        errors.price = "Giá bán phải lớn hơn 0";
-        isValid = false;
-      }
-      if (
-        !detail.conversionRate ||
-        isNaN(parseInt(detail.conversionRate)) ||
-        parseInt(detail.conversionRate) < 1
-      ) {
-        errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
-        isValid = false;
-      }
-      return errors;
-    });
-
-    const codes = productData.productDetails.map((d) => d.code.trim()).filter((c) => c);
-    if (new Set(codes).size !== codes.length) {
-      Swal.fire("Lỗi", "Mã code không được trùng lặp", "warning");
+    if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
+      errors.price = "Giá bán phải lớn hơn 0";
       isValid = false;
     }
-
-    if (productData.productDetails.length === 0) {
-      Swal.fire("Lỗi", "Phải có ít nhất một đơn vị bán", "warning");
+    if (
+      !detail.conversionRate ||
+      isNaN(parseInt(detail.conversionRate)) ||
+      parseInt(detail.conversionRate) < 1
+    ) {
+      errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
       isValid = false;
     }
+    return errors;
+  });
 
-    setErrors({ ...newErrors, productDetails: detailErrors });
-    if (!isValid) {
-      Swal.fire("Lỗi", "Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc", "error");
-    }
-    return isValid;
-  };
+  const codes = productData.productDetails.map((d) => d.code.trim()).filter((c) => c);
+  if (new Set(codes).size !== codes.length) {
+    Swal.fire("Lỗi", "Mã code không được trùng lặp", "warning");
+    isValid = false;
+  }
+
+  if (productData.productDetails.length === 0) {
+    Swal.fire("Lỗi", "Phải có ít nhất một đơn vị bán", "warning");
+    isValid = false;
+  }
+
+  setErrors({ ...newErrors, productDetails: detailErrors });
+  if (!isValid) {
+    Swal.fire("Lỗi", "Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc", "error");
+  }
+  return isValid;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -337,12 +369,13 @@ const ProductUpdate = () => {
         description: productData.description.trim() || null,
         weight: productData.weight ? parseFloat(productData.weight) : null,
         quantity: productData.quantity ? parseInt(productData.quantity) : 0,
+        status: "ACTIVE",
         productDetails: productData.productDetails.map((detail) => ({
           id: detail.id,
           code: detail.code.trim() || null,
-          unit: detail.unit,
+          unitId: parseInt(detail.unitId),
           conversionRate: parseInt(detail.conversionRate) || 1,
-          price: parseFloat(detail.price).toFixed(2), // Format as "55000.00"
+          price: parseFloat(detail.price).toFixed(2),
         })),
         mainImage: !!mainImageUrl,
         imageUrl: mainImageUrl || null,
@@ -429,29 +462,37 @@ const ProductUpdate = () => {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <div className="col-md-6">
-                    <div className="form-group">
-                      <h6>Trọng lượng (kg)</h6>
-                      <input
-                        type="text" // Đổi sang text
-                        name="weight"
-                        value={productData.weight}
-                        onChange={handleInputChange}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
-                        placeholder="Nhập trọng lượng"
-                      />
-                    </div>
-                    <div className="form-group">
-                      <h6>Số lượng</h6>
-                      <input
-                        type="text" // Đổi sang text
-                        name="quantity"
-                        value={productData.quantity}
-                        onChange={handleInputChange}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
-                        placeholder="Nhập số lượng"
-                      />
-                    </div>
+                  <div className="form-group">
+                    <h6>Trọng lượng (kg)</h6>
+                    <input
+                      type="text"
+                      name="weight"
+                      value={productData.weight}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^\d*\.?\d*$/.test(value) || value === "") {
+                          handleInputChange(e);
+                        }
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="Nhập trọng lượng"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <h6>Số lượng</h6>
+                    <input
+                      type="text"
+                      name="quantity"
+                      value={productData.quantity}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (/^\d*$/.test(value) || value === "") {
+                          handleInputChange(e);
+                        }
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="Nhập số lượng"
+                    />
                   </div>
                 </div>
               </div>
@@ -490,16 +531,21 @@ const ProductUpdate = () => {
                       </h6>
                       <FormControl fullWidth>
                         <Select
-                          name="unit"
-                          value={detail.unit}
+                          name="unitId"
+                          value={detail.unitId}
                           onChange={(e) => handleDetailChange(index, e)}
                           required
                         >
-                          <MenuItem value="CAN">Hộp/Lon</MenuItem>
-                          <MenuItem value="PACK">Lốc</MenuItem>
-                          <MenuItem value="CASE">Thùng</MenuItem>
+                          {units.map((unit) => (
+                            <MenuItem key={unit.id} value={unit.id}>
+                              {unit.name}
+                            </MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
+                      {errors.productDetails?.[index]?.unitId && (
+                        <p className="text-danger small">{errors.productDetails[index].unitId}</p>
+                      )}
                     </div>
                   </div>
                   <div className="col-md-2">
@@ -508,11 +554,16 @@ const ProductUpdate = () => {
                         Tỷ lệ quy đổi <span className="text-danger">*</span>
                       </h6>
                       <input
-                        type="text" // Đổi sang text
+                        type="text"
                         name="conversionRate"
                         value={detail.conversionRate}
-                        onChange={(e) => handleDetailChange(index, e)}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^\d*$/.test(value) || value === "") {
+                            handleDetailChange(index, e);
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Nhập tỷ lệ"
                         required
                       />
@@ -527,11 +578,16 @@ const ProductUpdate = () => {
                         Giá bán <span className="text-danger">*</span>
                       </h6>
                       <input
-                        type="text" // Đổi sang text
+                        type="text"
                         name="price"
                         value={detail.price}
-                        onChange={(e) => handleDetailChange(index, e)}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^\d*\.?\d*$/.test(value) || value === "") {
+                            handleDetailChange(index, e);
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Nhập giá bán"
                         required
                       />
@@ -592,30 +648,16 @@ const ProductUpdate = () => {
                             style={{ minHeight: "200px" }}
                           />
                           <div className="d-flex justify-content-center gap-2 mt-2">
-                            <Button
-                              variant="outlined"
-                              color="primary"
-                              size="small"
-                              onClick={() => fileInputRef.current.click()} // Kích hoạt input khi nhấn
-                              startIcon={<FaPencilAlt />}
-                            >
-                              Thay đổi
-                            </Button>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleMainImageChange}
-                              className="d-none"
-                              ref={fileInputRef} // Gắn ref vào input
-                            />
-                            {/* <Button
-                              variant="outlined"
-                              color="error"
-                              size="small"
-                              onClick={() => removeImage("main")}
-                            >
-                              Loại bỏ
-                            </Button> */}
+                            <label className="btn btn-sm btn-outline-primary">
+                              <FaPencilAlt /> Thay đổi
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleMainImageChange}
+                                className="d-none"
+                                ref={fileInputRef}
+                              />
+                            </label>
                           </div>
                         </div>
                       </div>
@@ -717,7 +759,7 @@ const ProductUpdate = () => {
                     type="submit"
                     variant="contained"
                     color="primary"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || units.length === 0}
                     startIcon={<FaCloudUploadAlt />}
                     style={{ padding: "8px 24px" }}
                   >

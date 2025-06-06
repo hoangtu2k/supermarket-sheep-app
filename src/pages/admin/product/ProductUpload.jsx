@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Button, FormControl, MenuItem, Select, InputLabel } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
@@ -8,11 +8,13 @@ import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
+import axios from "axios"; // Thêm axios để gọi API lấy danh sách Unit
 
 const ProductUpload = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [units, setUnits] = useState([]); // State để lưu danh sách Unit từ backend
 
   const [productData, setProductData] = useState({
     name: "",
@@ -21,7 +23,7 @@ const ProductUpload = () => {
     quantity: 0,
     productDetails: [{
       code: "",
-      unit: "CAN",
+      unitId: "", // Thay unit thành unitId
       conversionRate: 1,
       price: ""
     }],
@@ -37,6 +39,30 @@ const ProductUpload = () => {
     main: null,
     additional: []
   });
+
+  // Lấy danh sách Unit từ backend khi component mount
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const response = await axios.get('/admin/units'); // Giả sử API endpoint là /admin/units
+        setUnits(response.data);
+        // Nếu có units, đặt unitId mặc định cho productDetails đầu tiên
+        if (response.data.length > 0) {
+          setProductData(prev => ({
+            ...prev,
+            productDetails: [{
+              ...prev.productDetails[0],
+              unitId: response.data[0].id // Gán unitId mặc định
+            }]
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching units:", error);
+        Swal.fire('Lỗi', 'Không thể tải danh sách đơn vị', 'error');
+      }
+    };
+    fetchUnits();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -59,7 +85,7 @@ const ProductUpload = () => {
 
   const addProductDetail = () => {
     const lastDetail = productData.productDetails[productData.productDetails.length - 1];
-    if (!lastDetail.code.trim() || !lastDetail.price || parseFloat(lastDetail.price) <= 0 || parseInt(lastDetail.conversionRate) < 1) {
+    if (!lastDetail.code.trim() || !lastDetail.unitId || !lastDetail.price || parseFloat(lastDetail.price) <= 0 || parseInt(lastDetail.conversionRate) < 1) {
       Swal.fire('Lỗi', 'Vui lòng hoàn thành đơn vị bán trước khi thêm mới', 'warning');
       return;
     }
@@ -67,7 +93,7 @@ const ProductUpload = () => {
       ...prev,
       productDetails: [
         ...prev.productDetails,
-        { code: "", unit: "CAN", conversionRate: 1, price: "" }
+        { code: "", unitId: units.length > 0 ? units[0].id : "", conversionRate: 1, price: "" }
       ]
     }));
     setErrors(prev => ({ ...prev, productDetails: [...(prev.productDetails || []), {}] }));
@@ -160,7 +186,7 @@ const ProductUpload = () => {
         status: "ACTIVE",
         productDetails: productData.productDetails.map(detail => ({
           code: detail.code.trim(),
-          unit: detail.unit,
+          unitId: parseInt(detail.unitId), // Gửi unitId thay vì unit
           conversionRate: parseInt(detail.conversionRate) || 1,
           price: parseFloat(detail.price).toFixed(2)
         })),
@@ -192,7 +218,7 @@ const ProductUpload = () => {
     let isValid = true;
 
     if (!productData.name.trim()) {
-      newErrors.name = "Tên sản phẩm là bắt buộc";
+      newErrors.name = ")Tên sản phẩm là bắt buộc";
       isValid = false;
     }
 
@@ -208,6 +234,10 @@ const ProductUpload = () => {
         isValid = false;
       } else if (detail.code.length > 50) {
         errors.code = "Mã code không được vượt quá 50 ký tự";
+        isValid = false;
+      }
+      if (!detail.unitId) {
+        errors.unitId = "Đơn vị là bắt buộc";
         isValid = false;
       }
       if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
@@ -234,7 +264,7 @@ const ProductUpload = () => {
 
     setErrors({ ...newErrors, productDetails: detailErrors });
     if (!isValid) {
-      Swal.fire('Lỗi', 'Vui lòng kiểm Check và điền đầy đủ các trường bắt buộc', 'error');
+      Swal.fire('Lỗi', 'Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc', 'error');
     }
     return isValid;
   };
@@ -290,34 +320,32 @@ const ProductUpload = () => {
                   <div className="form-group">
                     <h6>Trọng lượng (kg)</h6>
                     <input
-                      type="text" // Đổi sang text
+                      type="text"
                       name="weight"
                       value={productData.weight}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Chỉ cho phép số và dấu chấm (cho số thập phân)
                         if (/^\d*\.?\d*$/.test(value) || value === "") {
                           handleInputChange(e);
                         }
                       }}
-                      onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="Nhập trọng lượng"
                     />
                   </div>
                   <div className="form-group">
                     <h6>Số lượng</h6>
                     <input
-                      type="text" // Đổi sang text
+                      type="text"
                       name="quantity"
                       value={productData.quantity}
                       onChange={(e) => {
                         const value = e.target.value;
-                        // Chỉ cho phép số nguyên
                         if (/^\d*$/.test(value) || value === "") {
                           handleInputChange(e);
                         }
                       }}
-                      onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                      onWheel={(e) => e.currentTarget.blur()}
                       placeholder="Nhập số lượng"
                     />
                   </div>
@@ -352,33 +380,37 @@ const ProductUpload = () => {
                       <h6>Đơn vị <span className="text-danger">*</span></h6>
                       <FormControl fullWidth>
                         <Select
-                          name="unit"
-                          value={detail.unit}
+                          name="unitId" // Đổi thành unitId
+                          value={detail.unitId}
                           onChange={(e) => handleDetailChange(index, e)}
                           required
                         >
-                          <MenuItem value="CAN">Hộp/Lon</MenuItem>
-                          <MenuItem value="PACK">Lốc</MenuItem>
-                          <MenuItem value="CASE">Thùng</MenuItem>
+                          {units.map((unit) => (
+                            <MenuItem key={unit.id} value={unit.id}>
+                              {unit.name} {/* Hiển thị tên đơn vị */}
+                            </MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
+                      {errors.productDetails?.[index]?.unitId && (
+                        <p className="text-danger small">{errors.productDetails[index].unitId}</p>
+                      )}
                     </div>
                   </div>
                   <div className="col-md-2">
                     <div className="form-group">
                       <h6>Tỷ lệ quy đổi <span className="text-danger">*</span></h6>
                       <input
-                        type="text" // Đổi sang text
+                        type="text"
                         name="conversionRate"
                         value={detail.conversionRate}
                         onChange={(e) => {
                           const value = e.target.value;
-                          // Chỉ cho phép số nguyên
                           if (/^\d*$/.test(value) || value === "") {
                             handleDetailChange(index, e);
                           }
                         }}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Nhập tỷ lệ"
                         required
                       />
@@ -391,17 +423,16 @@ const ProductUpload = () => {
                     <div className="form-group">
                       <h6>Giá bán <span className="text-danger">*</span></h6>
                       <input
-                        type="text" // Đổi sang text
+                        type="text"
                         name="price"
                         value={detail.price}
                         onChange={(e) => {
                           const value = e.target.value;
-                          // Chỉ cho phép số và dấu chấm (cho số thập phân)
                           if (/^\d*\.?\d*$/.test(value) || value === "") {
                             handleDetailChange(index, e);
                           }
                         }}
-                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        onWheel={(e) => e.currentTarget.blur()}
                         placeholder="Nhập giá bán"
                         required
                       />
@@ -568,7 +599,7 @@ const ProductUpload = () => {
                     type="submit"
                     variant="contained"
                     color="primary"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || units.length === 0}
                     startIcon={<FaCloudUploadAlt />}
                     style={{ padding: '8px 24px' }}
                   >
