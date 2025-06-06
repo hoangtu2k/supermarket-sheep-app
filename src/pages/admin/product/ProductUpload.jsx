@@ -155,8 +155,8 @@ const ProductUpload = () => {
       const payload = {
         name: productData.name.trim(),
         description: productData.description.trim() || null,
-        weight: parseFloat(productData.weight) || null,
-        quantity: parseInt(productData.quantity) || 0,
+        weight: productData.weight ? parseFloat(productData.weight) : null,
+        quantity: productData.quantity ? parseInt(productData.quantity) : 0,
         status: "ACTIVE",
         productDetails: productData.productDetails.map(detail => ({
           code: detail.code.trim(),
@@ -210,11 +210,11 @@ const ProductUpload = () => {
         errors.code = "Mã code không được vượt quá 50 ký tự";
         isValid = false;
       }
-      if (!detail.price || isNaN(detail.price) || parseFloat(detail.price) <= 0) {
+      if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
         errors.price = "Giá bán phải lớn hơn 0";
         isValid = false;
       }
-      if (!detail.conversionRate || isNaN(detail.conversionRate) || parseInt(detail.conversionRate) < 1) {
+      if (!detail.conversionRate || isNaN(parseInt(detail.conversionRate)) || parseInt(detail.conversionRate) < 1) {
         errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
         isValid = false;
       }
@@ -234,7 +234,7 @@ const ProductUpload = () => {
 
     setErrors({ ...newErrors, productDetails: detailErrors });
     if (!isValid) {
-      Swal.fire('Lỗi', 'Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc', 'error');
+      Swal.fire('Lỗi', 'Vui lòng kiểm Check và điền đầy đủ các trường bắt buộc', 'error');
     }
     return isValid;
   };
@@ -290,24 +290,35 @@ const ProductUpload = () => {
                   <div className="form-group">
                     <h6>Trọng lượng (kg)</h6>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text" // Đổi sang text
                       name="weight"
                       value={productData.weight}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Chỉ cho phép số và dấu chấm (cho số thập phân)
+                        if (/^\d*\.?\d*$/.test(value) || value === "") {
+                          handleInputChange(e);
+                        }
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                       placeholder="Nhập trọng lượng"
-                      min="0"
                     />
                   </div>
                   <div className="form-group">
                     <h6>Số lượng</h6>
                     <input
-                      type="number"
+                      type="text" // Đổi sang text
                       name="quantity"
                       value={productData.quantity}
-                      onChange={handleInputChange}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Chỉ cho phép số nguyên
+                        if (/^\d*$/.test(value) || value === "") {
+                          handleInputChange(e);
+                        }
+                      }}
+                      onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                       placeholder="Nhập số lượng"
-                      min="0"
                     />
                   </div>
                 </div>
@@ -339,7 +350,7 @@ const ProductUpload = () => {
                   <div className="col-md-2">
                     <div className="form-group">
                       <h6>Đơn vị <span className="text-danger">*</span></h6>
-                      <FormControl fullWidth >
+                      <FormControl fullWidth>
                         <Select
                           name="unit"
                           value={detail.unit}
@@ -357,12 +368,18 @@ const ProductUpload = () => {
                     <div className="form-group">
                       <h6>Tỷ lệ quy đổi <span className="text-danger">*</span></h6>
                       <input
-                        type="number"
+                        type="text" // Đổi sang text
                         name="conversionRate"
                         value={detail.conversionRate}
-                        onChange={(e) => handleDetailChange(index, e)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Chỉ cho phép số nguyên
+                          if (/^\d*$/.test(value) || value === "") {
+                            handleDetailChange(index, e);
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                         placeholder="Nhập tỷ lệ"
-                        min="1"
                         required
                       />
                       {errors.productDetails?.[index]?.conversionRate && (
@@ -374,13 +391,18 @@ const ProductUpload = () => {
                     <div className="form-group">
                       <h6>Giá bán <span className="text-danger">*</span></h6>
                       <input
-                        type="number"
+                        type="text" // Đổi sang text
                         name="price"
                         value={detail.price}
-                        onChange={(e) => handleDetailChange(index, e)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Chỉ cho phép số và dấu chấm (cho số thập phân)
+                          if (/^\d*\.?\d*$/.test(value) || value === "") {
+                            handleDetailChange(index, e);
+                          }
+                        }}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                         placeholder="Nhập giá bán"
-                        min="0.01"
-                        step="0.01"
                         required
                       />
                       {errors.productDetails?.[index]?.price && (

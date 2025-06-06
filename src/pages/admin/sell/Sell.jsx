@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { MyContext } from "../../../App";
 import { AuthContext } from "../../../context/AuthProvider";
@@ -169,7 +170,7 @@ const Sell = () => {
       // After successful submission, remove the current invoice
       setInvoices((prev) => {
         const newInvoices = prev.filter((inv) => inv.id !== currentInvoiceId);
-        
+
         // If no invoices remain, reset to a new "Hóa đơn 1"
         if (newInvoices.length === 0) {
           const newId = 1;
@@ -525,7 +526,12 @@ const Sell = () => {
                     style={{ cursor: "pointer" }}
                   >
                     <div className="d-flex justify-content-between">
-                      <span>{product.name}</span>
+                      <div>
+                        <span>{product.name}</span>
+                        <div className="text-muted small">
+                          Mã SP: {product.productDetails[0]?.code || "N/A"}
+                        </div>
+                      </div>
                       <strong>
                         {product.productDetails[0]?.price
                           ? product.productDetails[0].price.toLocaleString()
@@ -645,68 +651,82 @@ const Sell = () => {
         <div className="row flex-grow-1 overflow-auto m-0">
           <div className="col-12 col-sm-8 d-flex flex-column p-0">
             <div className="p-3 bg-white overflow-auto" style={{ maxHeight: "450px" }}>
-              {(carts[currentInvoiceId] || []).map((item) => (
-                <div key={item.id} className="d-flex align-items-center border-bottom py-2">
+
+              {/* Cart Header */}
+              <div className="cart-header">
+                <div className="col-stt">STT</div>
+                <div className="col-remove"></div> {/* Empty space for remove button */}
+                <div className="col-code">Mã SP</div>
+                <div className="col-name">Tên sản phẩm</div>
+                <div className="col-unit">Đơn vị</div>
+                <div className="col-quantity">Số lượng</div>
+                <div className="col-price">Đơn giá</div>
+                <div className="col-total">Thành tiền</div>
+              </div>
+
+              {/* Cart Items */}
+              {(carts[currentInvoiceId] || []).map((item, index) => (
+                <div key={item.id} className="cart-item">
+                  <span className="col-stt">{index + 1}</span>
                   <button
                     onClick={() => handleRemove(item.id)}
-                    className="btn btn-link text-danger p-0 mr-3"
+                    className="btn btn-link text-danger p-0 col-remove"
                   >
                     🗑
                   </button>
-                  <span className="mr-3" style={{ minWidth: "100px" }}>{item.id}</span>
-                  <span className="flex-grow-1">{item.name}</span>
-                  <div className="d-flex align-items-center">
-                    <select
-                      className="form-control form-control-sm mr-3"
-                      style={{ width: "100px" }}
-                      value={item.selectedUnit}
-                      onChange={(e) => handleUnitChange(item.id, e.target.value)}
-                    >
-                      {(() => {
-                        const availableUnits = (item.productDetails || []).map((detail) => ({
-                          id: detail.id,
-                          unit: detail.unit,
-                          price: detail.price,
-                        }));
-                        const allUnits = [
-                          { id: `default-can-${item.id}`, unit: "CAN", price: 0 },
-                          { id: `default-pack-${item.id}`, unit: "PACK", price: 0 },
-                          { id: `default-case-${item.id}`, unit: "CASE", price: 0 },
-                        ];
-                        const unitMap = new Map();
-                        availableUnits.forEach((u) => unitMap.set(u.unit, u));
-                        allUnits.forEach((u) => {
-                          if (!unitMap.has(u.unit)) unitMap.set(u.unit, u);
-                        });
-                        return Array.from(unitMap.values()).map((detail) => (
-                          <option key={detail.id} value={detail.unit}>
-                            {unitDisplayMap[detail.unit] || detail.unit}
-                          </option>
-                        ));
-                      })()}
-                    </select>
+                  <span className="col-code" title={item.productDetails[0]?.code || "N/A"}>
+                    {item.productDetails[0]?.code || "N/A"}
+                  </span>
+                  <span className="col-name" title={item.name}>
+                    {item.name}
+                  </span>
+                  <select
+                    className="form-control form-control-sm col-unit"
+                    value={item.selectedUnit}
+                    onChange={(e) => handleUnitChange(item.id, e.target.value)}
+                  >
+                    {(() => {
+                      const availableUnits = (item.productDetails || []).map((detail) => ({
+                        id: detail.id,
+                        unit: detail.unit,
+                        price: detail.price,
+                      }));
+                      const allUnits = [
+                        { id: `default-can-${item.id}`, unit: "CAN", price: 0 },
+                        { id: `default-pack-${item.id}`, unit: "PACK", price: 0 },
+                        { id: `default-case-${item.id}`, unit: "CASE", price: 0 },
+                      ];
+                      const unitMap = new Map();
+                      availableUnits.forEach((u) => unitMap.set(u.unit, u));
+                      allUnits.forEach((u) => {
+                        if (!unitMap.has(u.unit)) unitMap.set(u.unit, u);
+                      });
+                      return Array.from(unitMap.values()).map((detail) => (
+                        <option key={detail.id} value={detail.unit}>
+                          {unitDisplayMap[detail.unit] || detail.unit}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                  <div className="col-quantity">
                     <button
                       onClick={() => handleDecrease(item.id)}
-                      className="btn btn-sm btn-outline-secondary mr-2"
+                      className="btn btn-sm btn-outline-secondary"
                     >
                       -
                     </button>
-                    <span className="mx-1" style={{ minWidth: "25px", textAlign: "center" }}>
-                      {item.quantity}
-                    </span>
+                    <span>{item.quantity}</span>
                     <button
                       onClick={() => handleIncrease(item.id)}
-                      className="btn btn-sm btn-outline-secondary mr-3"
+                      className="btn btn-sm btn-outline-secondary"
                     >
                       +
                     </button>
-                    <span className="mr-3" style={{ minWidth: "80px", textAlign: "right" }}>
-                      {(item.price || 0).toLocaleString()}
-                    </span>
-                    <strong className="mr-3" style={{ minWidth: "100px", textAlign: "right" }}>
-                      {((item.price || 0) * item.quantity).toLocaleString()}
-                    </strong>
                   </div>
+                  <span className="col-price">{(item.price || 0).toLocaleString()}</span>
+                  <strong className="col-total">
+                    {((item.price || 0) * item.quantity).toLocaleString()}
+                  </strong>
                 </div>
               ))}
               {(!carts[currentInvoiceId] || carts[currentInvoiceId].length === 0) && (
@@ -868,7 +888,7 @@ const Sell = () => {
         <Button className="text-primary font-weight-bold">⚡ Bán nhanh</Button>
         <Button className="text-primary font-weight-bold">🚚 Bán giao hàng</Button>
       </div>
-    </div>
+    </div >
   );
 };
 

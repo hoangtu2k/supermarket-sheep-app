@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, FormControl, MenuItem, Select } from "@mui/material";
 import { LazyLoadImage } from "react-lazy-load-image-component";
@@ -16,6 +16,7 @@ const ProductUpdate = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState({});
+  const fileInputRef = useRef(null);
 
   const [productData, setProductData] = useState({
     name: "",
@@ -62,12 +63,12 @@ const ProductUpdate = () => {
           quantity: product.quantity || 0,
           productDetails: product.productDetails?.length
             ? product.productDetails.map((detail) => ({
-                id: detail.id,
-                code: detail.code || "",
-                unit: detail.unit || "CAN",
-                conversionRate: detail.conversionRate || 1,
-                price: detail.price ? detail.price.toString() : "", // Store as string
-              }))
+              id: detail.id,
+              code: detail.code || "",
+              unit: detail.unit || "CAN",
+              conversionRate: detail.conversionRate || 1,
+              price: detail.price ? detail.price.toString() : "", // Store as string
+            }))
             : [{ id: null, code: "", unit: "CAN", conversionRate: 1, price: "" }],
           mainImage: !!product.imageUrl,
           imageUrl: product.imageUrl || "",
@@ -100,27 +101,24 @@ const ProductUpdate = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === "weight" && !/^\d*\.?\d*$/.test(value) && value !== "") return; // Chỉ cho phép số thập phân
+    if (name === "quantity" && !/^\d*$/.test(value) && value !== "") return; // Chỉ cho phép số nguyên
     setProductData((prev) => ({
       ...prev,
-      [name]: name === "weight" || name === "quantity" ? (value ? Number(value) : "") : value,
+      [name]: value,
     }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleDetailChange = (index, e) => {
     const { name, value } = e.target;
+    if (name === "conversionRate" && !/^\d*$/.test(value) && value !== "") return; // Chỉ số nguyên
+    if (name === "price" && !/^\d*\.?\d*$/.test(value) && value !== "") return; // Chỉ số thập phân
     setProductData((prev) => {
       const newDetails = [...prev.productDetails];
       newDetails[index] = {
         ...newDetails[index],
-        [name]:
-          name === "conversionRate"
-            ? value
-              ? parseInt(value) || ""
-              : ""
-            : name === "price"
-            ? value // Keep as string
-            : value,
+        [name]: value,
       };
       return { ...prev, productDetails: newDetails };
     });
@@ -261,13 +259,13 @@ const ProductUpdate = () => {
         errors.code = "Mã code không được vượt quá 50 ký tự";
         isValid = false;
       }
-      if (!detail.price || isNaN(detail.price) || parseFloat(detail.price) <= 0) {
+      if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
         errors.price = "Giá bán phải lớn hơn 0";
         isValid = false;
       }
       if (
         !detail.conversionRate ||
-        isNaN(detail.conversionRate) ||
+        isNaN(parseInt(detail.conversionRate)) ||
         parseInt(detail.conversionRate) < 1
       ) {
         errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
@@ -337,14 +335,14 @@ const ProductUpdate = () => {
       const updateData = {
         name: productData.name.trim(),
         description: productData.description.trim() || null,
-        weight: parseFloat(productData.weight) || null,
-        quantity: parseInt(productData.quantity) || 0,
+        weight: productData.weight ? parseFloat(productData.weight) : null,
+        quantity: productData.quantity ? parseInt(productData.quantity) : 0,
         productDetails: productData.productDetails.map((detail) => ({
           id: detail.id,
           code: detail.code.trim() || null,
           unit: detail.unit,
           conversionRate: parseInt(detail.conversionRate) || 1,
-          price: Number(detail.price).toFixed(2), // Format as "55000.00"
+          price: parseFloat(detail.price).toFixed(2), // Format as "55000.00"
         })),
         mainImage: !!mainImageUrl,
         imageUrl: mainImageUrl || null,
@@ -431,28 +429,29 @@ const ProductUpdate = () => {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <div className="form-group">
-                    <h6>Trọng lượng (kg)</h6>
-                    <input
-                      type="number"
-                      step="0.01"
-                      name="weight"
-                      value={productData.weight}
-                      onChange={handleInputChange}
-                      placeholder="Nhập trọng lượng"
-                      min="0"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <h6>Số lượng</h6>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={productData.quantity}
-                      onChange={handleInputChange}
-                      placeholder="Nhập số lượng"
-                      min="0"
-                    />
+                  <div className="col-md-6">
+                    <div className="form-group">
+                      <h6>Trọng lượng (kg)</h6>
+                      <input
+                        type="text" // Đổi sang text
+                        name="weight"
+                        value={productData.weight}
+                        onChange={handleInputChange}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        placeholder="Nhập trọng lượng"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <h6>Số lượng</h6>
+                      <input
+                        type="text" // Đổi sang text
+                        name="quantity"
+                        value={productData.quantity}
+                        onChange={handleInputChange}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
+                        placeholder="Nhập số lượng"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -480,9 +479,7 @@ const ProductUpdate = () => {
                         required
                       />
                       {errors.productDetails?.[index]?.code && (
-                        <p className="text-danger small">
-                          {errors.productDetails[index].code}
-                        </p>
+                        <p className="text-danger small">{errors.productDetails[index].code}</p>
                       )}
                     </div>
                   </div>
@@ -511,18 +508,16 @@ const ProductUpdate = () => {
                         Tỷ lệ quy đổi <span className="text-danger">*</span>
                       </h6>
                       <input
-                        type="number"
+                        type="text" // Đổi sang text
                         name="conversionRate"
                         value={detail.conversionRate}
                         onChange={(e) => handleDetailChange(index, e)}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                         placeholder="Nhập tỷ lệ"
-                        min="1"
                         required
                       />
                       {errors.productDetails?.[index]?.conversionRate && (
-                        <p className="text-danger small">
-                          {errors.productDetails[index].conversionRate}
-                        </p>
+                        <p className="text-danger small">{errors.productDetails[index].conversionRate}</p>
                       )}
                     </div>
                   </div>
@@ -532,19 +527,16 @@ const ProductUpdate = () => {
                         Giá bán <span className="text-danger">*</span>
                       </h6>
                       <input
-                        type="number"
+                        type="text" // Đổi sang text
                         name="price"
                         value={detail.price}
                         onChange={(e) => handleDetailChange(index, e)}
+                        onWheel={(e) => e.currentTarget.blur()} // Thoát focus khi lăn chuột
                         placeholder="Nhập giá bán"
-                        min="0.01"
-                        step="0.01"
                         required
                       />
                       {errors.productDetails?.[index]?.price && (
-                        <p className="text-danger small">
-                          {errors.productDetails[index].price}
-                        </p>
+                        <p className="text-danger small">{errors.productDetails[index].price}</p>
                       )}
                     </div>
                   </div>
@@ -600,23 +592,30 @@ const ProductUpdate = () => {
                             style={{ minHeight: "200px" }}
                           />
                           <div className="d-flex justify-content-center gap-2 mt-2">
-                            <label className="btn btn-sm btn-outline-primary">
-                              <FaPencilAlt /> Thay đổi
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleMainImageChange}
-                                className="d-none"
-                              />
-                            </label>
                             <Button
+                              variant="outlined"
+                              color="primary"
+                              size="small"
+                              onClick={() => fileInputRef.current.click()} // Kích hoạt input khi nhấn
+                              startIcon={<FaPencilAlt />}
+                            >
+                              Thay đổi
+                            </Button>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleMainImageChange}
+                              className="d-none"
+                              ref={fileInputRef} // Gắn ref vào input
+                            />
+                            {/* <Button
                               variant="outlined"
                               color="error"
                               size="small"
                               onClick={() => removeImage("main")}
                             >
                               Loại bỏ
-                            </Button>
+                            </Button> */}
                           </div>
                         </div>
                       </div>
