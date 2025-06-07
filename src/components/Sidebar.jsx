@@ -133,7 +133,7 @@ const Sidebar = () => {
                         </Link>
                     </li>
                     <li>
-                        <Link to="/admin/sell">
+                        <Link to="/admin/pos_v1">
                             <Button className={`w-100 ${activeTab === 7 ? 'active' : ''}`}>
                                 <span className="icon"><FaShoppingCart /></span>
                                 Bán hàng

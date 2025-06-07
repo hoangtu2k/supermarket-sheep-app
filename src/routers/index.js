@@ -33,7 +33,7 @@ const publicRouters = [
         { path: '/admin/importslips', component: ImportSlips, private: true},
         { path: '/admin/403', component: NoAccess},
 
-        { path: '/admin/sell', component: Sell},
+        { path: '/admin/pos_v1', component: Sell},
        
       ];
 

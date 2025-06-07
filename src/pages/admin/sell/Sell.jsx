@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { MyContext } from "../../../App";
 import { AuthContext } from "../../../context/AuthProvider";
@@ -9,6 +10,7 @@ import { productService } from "../../../services/productService";
 import { customerService } from "../../../services/customerService";
 import { sellService } from "../../../services/sellService";
 import { unitService } from "../../../services/unitService";
+import axios from "axios";
 import "../../../styles/sell.css";
 
 const Sell = () => {
@@ -51,7 +53,7 @@ const Sell = () => {
         ...item,
         productDetails: Array.isArray(item.productDetails)
           ? item.productDetails
-          : [{ id: `default-${item.id}`, code: `PD-${item.id}`, unitId: null, price: 0, conversionRate: 1 }],
+          : [{ id: `default-${item.id}`, barCode: `PD-${item.id}`, unitId: null, price: 0, conversionRate: 1 }],
         selectedUnitId: item.selectedUnitId || (Array.isArray(item.productDetails) && item.productDetails[0]?.unitId) || null,
         price: Number(item.price) || 0,
       }));
@@ -89,11 +91,11 @@ const Sell = () => {
     alert("Thêm khách hàng mới");
   };
 
-  const handleIncrease = (id) => {
+  const handleIncrease = (id, unitId) => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.map((item) => {
-        if (item.id === id) {
+        if (item.id === id && item.selectedUnitId === unitId) {
           const product = products.find((p) => p.id === item.id);
           if (!product) {
             alert(`Không tìm thấy sản phẩm ${item.name}`);
@@ -113,20 +115,22 @@ const Sell = () => {
     });
   };
 
-  const handleDecrease = (id) => {
+  const handleDecrease = (id, unitId) => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.map((item) =>
-        item.id === id && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
+        item.id === id && item.selectedUnitId === unitId && item.quantity > 1
+          ? { ...item, quantity: item.quantity - 1 }
+          : item
       );
       return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
 
-  const handleRemove = (id) => {
+  const handleRemove = (id, unitId) => {
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
-      const updatedCart = currentCart.filter((item) => item.id !== id);
+      const updatedCart = currentCart.filter((item) => !(item.id === id && item.selectedUnitId === unitId));
       return { ...prevCarts, [currentInvoiceId]: updatedCart };
     });
   };
@@ -136,16 +140,36 @@ const Sell = () => {
       const currentCart = prevCarts[currentInvoiceId] || [];
       const updatedCart = currentCart.map((item) => {
         if (item.id === id) {
-          const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === parseInt(newUnitId)) || { price: 0 };
+          const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === parseInt(newUnitId)) || { price: 0, barCode: `PD-${id}` };
+          const existingItem = currentCart.find((cartItem) => cartItem.id === id && cartItem.selectedUnitId === parseInt(newUnitId));
+          if (existingItem) {
+            return null; // Mark for removal to merge quantities
+          }
           return {
             ...item,
             selectedUnitId: parseInt(newUnitId),
             price: Number(selectedDetail.price) || 0,
+            barCode: selectedDetail.barCode,
           };
         }
         return item;
+      }).filter(item => item !== null);
+
+      // Merge duplicate items
+      const mergedCart = [];
+      const itemMap = new Map();
+      updatedCart.forEach((item) => {
+        const key = `${item.id}-${item.selectedUnitId}`;
+        if (itemMap.has(key)) {
+          const existing = itemMap.get(key);
+          existing.quantity += item.quantity;
+        } else {
+          itemMap.set(key, { ...item });
+        }
       });
-      return { ...prevCarts, [currentInvoiceId]: updatedCart };
+      itemMap.forEach((value) => mergedCart.push(value));
+
+      return { ...prevCarts, [currentInvoiceId]: mergedCart };
     });
   };
 
@@ -156,7 +180,6 @@ const Sell = () => {
       return;
     }
 
-    // Validate cart items
     for (const item of currentCart) {
       if (!item.selectedUnitId) {
         alert(`Vui lòng chọn đơn vị cho sản phẩm ${item.name}`);
@@ -199,7 +222,6 @@ const Sell = () => {
       const response = await sellService.submitOrder(orderData);
       console.log("Đơn hàng đã được gửi:", response.data);
 
-      // Reset state after successful submission
       setInvoices((prev) => {
         const newInvoices = prev.filter((inv) => inv.id !== currentInvoiceId);
         if (newInvoices.length === 0) {
@@ -270,16 +292,15 @@ const Sell = () => {
   };
 
   const handleGoToAdmin = () => {
-    navigate("/admin/dashboard");
+    navigate("/admin");
   };
 
-  const addToCart = (product) => {
+  const addToCart = (product, unitId) => {
     if (!currentInvoiceId) return;
     setCarts((prevCarts) => {
       const currentCart = prevCarts[currentInvoiceId] || [];
-      const existingItem = currentCart.find((item) => item.id === product.id);
-      const defaultDetail = product.productDetails[0] || { id: null, unitId: null, price: 0, conversionRate: 1 };
-      const selectedDetail = product.productDetails.find((d) => d.unitId === (existingItem?.selectedUnitId || defaultDetail.unitId)) || defaultDetail;
+      const selectedDetail = product.productDetails?.find((d) => d.unitId === unitId) || product.productDetails[0] || { id: null, unitId: null, price: 0, conversionRate: 1, barCode: `PD-${product.id}` };
+      const existingItem = currentCart.find((item) => item.id === product.id && item.selectedUnitId === selectedDetail.unitId);
       const requiredQuantity = (existingItem ? existingItem.quantity + 1 : 1) * (selectedDetail.conversionRate || 1);
       if (product.quantity < requiredQuantity) {
         alert(`Sản phẩm ${product.name} không đủ tồn kho. Còn lại: ${product.quantity}`);
@@ -288,17 +309,22 @@ const Sell = () => {
       let updatedCart;
       if (existingItem) {
         updatedCart = currentCart.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          item.id === product.id && item.selectedUnitId === selectedDetail.unitId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
         );
       } else {
         updatedCart = [
           ...currentCart,
           {
-            ...product,
+            id: product.id,
+            name: product.name,
             quantity: 1,
-            selectedUnitId: defaultDetail.unitId,
-            price: Number(defaultDetail.price),
+            selectedUnitId: selectedDetail.unitId,
+            price: Number(selectedDetail.price),
             productDetails: product.productDetails,
+            barCode: selectedDetail.barCode,
+            totalQuantity: product.quantity,
           },
         ];
       }
@@ -368,10 +394,6 @@ const Sell = () => {
     return c.name.toLowerCase().includes(keyword) || c.phone?.toLowerCase().includes(keyword);
   });
 
-  const filteredProducts = products.filter((product) =>
-    (product.name || "").toLowerCase().includes((searchProduct || "").toLowerCase())
-  );
-
   // useEffect
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -415,12 +437,12 @@ const Sell = () => {
           productDetails: Array.isArray(product.productDetails)
             ? product.productDetails.map((detail) => ({
               id: detail.id || `default-${product.id}`,
-              code: detail.code || `PD-${product.id}`,
+              barCode: detail.barCode || `PD-${product.id}`,
               unitId: detail.unitId || null,
               price: Number(detail.price) || 0,
               conversionRate: detail.conversionRate || 1,
             }))
-            : [{ id: `default-${product.id}`, code: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
+            : [{ id: `default-${product.id}`, barCode: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
         }));
         setProducts(transformedProducts);
       } catch (error) {
@@ -444,11 +466,24 @@ const Sell = () => {
         if (error.response?.status === 401) {
           alert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
           logout();
-          navigate("/admin/login");
+          navigate("/login");
         } else {
           setCustomers([]);
         }
       }
+    };
+
+    const updateDateTime = () => {
+      const now = new Date();
+      const formatted = now.toLocaleString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      setCurrentDateTime(formatted);
     };
 
     fetchProducts();
@@ -466,19 +501,6 @@ const Sell = () => {
       setStaffName("Tên không xác định");
     }
 
-    const updateDateTime = () => {
-      const now = new Date();
-      const formatted = now.toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      setCurrentDateTime(formatted);
-    };
-
     updateDateTime();
     const timer = setInterval(updateDateTime, 1000);
 
@@ -490,6 +512,66 @@ const Sell = () => {
       context.setisHideSidebarAndHeader(false);
     };
   }, [context, user, themeMode, logout, navigate]);
+
+  useEffect(() => {
+    const fetchSearchProducts = async () => {
+      setProducts([]);
+      if (!searchProduct.trim()) {
+        try {
+          const response = await productService.getAllProducts();
+          const transformedProducts = response.data.map((product) => ({
+            id: (product.id || "").toString(),
+            name: product.name || "Unknown Product",
+            quantity: product.quantity || 0,
+            productDetails: Array.isArray(product.productDetails)
+              ? product.productDetails.map((detail) => ({
+                id: detail.id || `default-${product.id}`,
+                barCode: detail.barCode || `PD-${product.id}`,
+                unitId: detail.unitId || null,
+                price: Number(detail.price) || 0,
+                conversionRate: detail.conversionRate || 1,
+              }))
+              : [{ id: `default-${product.id}`, barCode: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
+          }));
+          setProducts(transformedProducts);
+        } catch (error) {
+          console.error("Error fetching all products:", error);
+          setProducts([]);
+        }
+        return;
+      }
+
+      try {
+        const response = await axios.get(`/admin/products/search?keyword=${encodeURIComponent(searchProduct)}`);
+        const transformedProducts = response.data.map((product) => ({
+          id: (product.id || "").toString(),
+          name: product.name || "Unknown Product",
+          quantity: product.quantity || 0,
+          productDetails: Array.isArray(product.productDetails)
+            ? product.productDetails.map((detail) => ({
+              id: detail.id || `default-${product.id}`,
+              barCode: detail.barCode || `PD-${product.id}`,
+              unitId: detail.unitId || null,
+              price: Number(detail.price) || 0,
+              conversionRate: detail.conversionRate || 1,
+            }))
+            : [{ id: `default-${product.id}`, barCode: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
+        }));
+        setProducts(transformedProducts);
+      } catch (error) {
+        console.error("Error searching products:", {
+          message: error.message,
+          responseData: error.response?.data,
+          status: error.response?.status,
+          request: error.request,
+        });
+        alert(error.response?.data?.message || "Không tìm thấy sản phẩm. Vui lòng thử lại.");
+        setProducts([]);
+      }
+    };
+
+    fetchSearchProducts();
+  }, [searchProduct]);
 
   useEffect(() => {
     setChange(customerPay - totalAmount);
@@ -504,44 +586,46 @@ const Sell = () => {
     localStorage.setItem("customerPay", String(customerPay));
   }, [carts, selectedCustomers, currentInvoiceId, invoices, paymentMethods, customerPay]);
 
+
   return (
     <div className="vh-100 d-flex flex-column" style={{ fontSize: "0.8rem" }}>
       {/* Header */}
       <nav className="navbar navbar-dark bg-primary px-3">
         <div className="d-flex align-items-center">
           <div className="position-relative mr-2" style={{ width: "350px" }}>
+
             <input
               className="form-control"
-              placeholder="Tìm sản phẩm... (F3)"
+              placeholder="Tìm sản phẩm hoặc mã barcode... (F3)" // Updated placeholder
               value={searchProduct}
               onChange={(e) => setSearchProduct(e.target.value)}
               ref={productSearchRef}
             />
-            {searchProduct && filteredProducts.length > 0 && (
+            {searchProduct && products.length > 0 && (
               <ul className="list-group position-absolute w-100" style={{ zIndex: 1000, top: "100%", left: 0 }}>
-                {filteredProducts.map((product) => (
-                  <li
-                    key={product.id}
-                    className="list-group-item list-group-item-action"
-                    onClick={() => addToCart(product)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div>
-                        <span>{product.name}</span>
-                        <div className="text-muted small">
-                          Mã SP: {product.productDetails[0]?.code || "N/A"}
+                {products.map((product) =>
+                  product.productDetails.map((detail) => (
+                    <li
+                      key={`${product.id}-${detail.unitId}`}
+                      className="list-group-item list-group-item-action"
+                      onClick={() => addToCart(product, detail.unitId)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div className="d-flex justify-content-between">
+                        <div>
+                          <span>{product.name}</span>
+                          <div className="text-muted small">
+                            Mã Barcode: {detail.barCode || "N/A"} {/* Removed Mã SKU */}
+                          </div>
                         </div>
+                        <strong>
+                          {detail.price.toLocaleString()} đ (
+                          {units.find((u) => u.id === detail.unitId)?.name || "N/A"})
+                        </strong>
                       </div>
-                      <strong>
-                        {product.productDetails[0]?.price
-                          ? product.productDetails[0].price.toLocaleString()
-                          : 0}
-                        đ ({units.find((u) => u.id === product.productDetails[0]?.unitId)?.name || "N/A"})
-                      </strong>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  ))
+                )}
               </ul>
             )}
           </div>
@@ -652,7 +736,7 @@ const Sell = () => {
               <div className="cart-header">
                 <div className="col-stt">STT</div>
                 <div className="col-remove"></div>
-                <div className="col-code">Mã SP</div>
+                <div className="col-code">Mã Barcode</div>
                 <div className="col-name">Tên sản phẩm</div>
                 <div className="col-unit">Đơn vị</div>
                 <div className="col-quantity">Số lượng</div>
@@ -662,22 +746,25 @@ const Sell = () => {
 
               {/* Cart Items */}
               {(carts[currentInvoiceId] || []).map((item, index) => (
-                <div key={item.id} className="cart-item">
+                <div key={`${item.id}-${item.selectedUnitId}`} className="cart-item">
                   <span className="col-stt">{index + 1}</span>
                   <button
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => handleRemove(item.id, item.selectedUnitId)}
                     className="btn btn-link text-danger p-0 col-remove"
                   >
                     🗑
                   </button>
-                  <span className="col-code" title={(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.code || "N/A"}>
-                    {(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.code || "N/A"}
+                  <span
+                    className="col-code"
+                    title={(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.barCode || item.barCode || "N/A"}
+                  >
+                    {(item.productDetails || []).find((d) => d.unitId === item.selectedUnitId)?.barCode || item.barCode || "N/A"}
                   </span>
                   <span className="col-name" title={item.name}>
                     {item.name}
                   </span>
                   <select
-                    className="form-control form-control-sm col-unit"
+                    className="form-control form-control-sm col-unit mr-2"
                     value={item.selectedUnitId || ""}
                     onChange={(e) => handleUnitChange(item.id, e.target.value)}
                   >
@@ -689,14 +776,14 @@ const Sell = () => {
                   </select>
                   <div className="col-quantity d-flex align-items-center">
                     <button
-                      onClick={() => handleDecrease(item.id)}
+                      onClick={() => handleDecrease(item.id, item.selectedUnitId)}
                       className="btn btn-sm btn-outline-secondary"
                     >
                       -
                     </button>
                     <span className="mx-2">{item.quantity}</span>
                     <button
-                      onClick={() => handleIncrease(item.id)}
+                      onClick={() => handleIncrease(item.id, item.selectedUnitId)}
                       className="btn btn-sm btn-outline-secondary"
                     >
                       +
@@ -858,8 +945,8 @@ const Sell = () => {
           </div>
         </div>
         <div className="d-flex justify-content-around bg-white py-2 border-top">
-          <Button className="text-primary">⚡ Bán nhanh</Button>
-          <Button className="text-secondary">🚚 Bán giao</Button>
+          <Button className="text-primary">⚡ Bán trực tiếp</Button>
+          <Button className="text-secondary">🚚 Bán giao hàng</Button>
         </div>
       </div>
     </div>
