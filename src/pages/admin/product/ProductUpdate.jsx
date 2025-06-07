@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, FormControl, MenuItem, Select, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
+import { Button, TextField, IconButton, FormGroup, FormControl, Select, FormControlLabel, Checkbox, MenuItem } from "@mui/material";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
@@ -10,6 +10,7 @@ import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
 import CircularProgress from "@mui/material/CircularProgress";
 import axios from "axios";
+import { Delete } from "@mui/icons-material";
 
 const ProductUpdate = () => {
   const { id } = useParams();
@@ -18,8 +19,8 @@ const ProductUpdate = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [units, setUnits] = useState([]);
-  const [categories, setCategories] = useState([]); // State để lưu danh sách danh mục
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]); // State để lưu danh mục được chọn
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
   const fileInputRef = useRef(null);
 
   const [productData, setProductData] = useState({
@@ -39,6 +40,9 @@ const ProductUpdate = () => {
     mainImage: false,
     imageUrl: "",
     notMainImages: [],
+    sizes: [],
+    colors: [],
+    materials: [],
   });
 
   const [imagePreviews, setImagePreviews] = useState({
@@ -52,26 +56,34 @@ const ProductUpdate = () => {
   });
 
   const [previewUrls, setPreviewUrls] = useState([]);
+  const [attributes, setAttributes] = useState([]); // Danh sách thuộc tính (sizes, colors, materials)
+  const [newAttribute, setNewAttribute] = useState("");
+  const [attributeTypeIndex, setAttributeTypeIndex] = useState(0);
 
-  // Lấy danh sách Unit và Categories từ backend
+  const attributeTypes = [
+    { label: "Kích thước", key: "sizes" },
+    { label: "Màu sắc", key: "colors" },
+    { label: "Chất liệu", key: "materials" },
+  ];
+
   useEffect(() => {
     const fetchUnits = async () => {
       try {
-        const response = await axios.get('/admin/units');
+        const response = await axios.get("/admin/units");
         setUnits(response.data);
       } catch (error) {
         console.error("Error fetching units:", error);
-        Swal.fire('Lỗi', 'Không thể tải danh sách đơn vị', 'error');
+        Swal.fire("Lỗi", "Không thể tải danh sách đơn vị", "error");
       }
     };
 
     const fetchCategories = async () => {
       try {
-        const response = await axios.get('/admin/categories');
+        const response = await axios.get("/admin/categories");
         setCategories(response.data);
       } catch (error) {
         console.error("Error fetching categories:", error);
-        Swal.fire('Lỗi', 'Không thể tải danh sách danh mục', 'error');
+        Swal.fire("Lỗi", "Không thể tải danh sách danh mục", "error");
       }
     };
 
@@ -79,7 +91,6 @@ const ProductUpdate = () => {
     fetchCategories();
   }, []);
 
-  // Tải dữ liệu sản phẩm
   useEffect(() => {
     const fetchProduct = async () => {
       setIsLoading(true);
@@ -112,6 +123,9 @@ const ProductUpdate = () => {
           mainImage: !!product.imageUrl,
           imageUrl: product.imageUrl || "",
           notMainImages: product.notMainImages || [],
+          sizes: product.sizes || [],
+          colors: product.colors || [],
+          materials: product.materials || [],
         });
 
         setImagePreviews({
@@ -119,7 +133,12 @@ const ProductUpdate = () => {
           additional: product.notMainImages || [],
         });
 
-        // Lấy danh sách categoryIds từ product
+        setAttributes([
+          ...product.sizes.map((size) => ({ type: "Kích thước", value: size, key: "sizes" })),
+          ...product.colors.map((color) => ({ type: "Màu sắc", value: color, key: "colors" })),
+          ...product.materials.map((material) => ({ type: "Chất liệu", value: material, key: "materials" })),
+        ]);
+
         setSelectedCategoryIds(product.categoryIds || []);
       } catch (error) {
         Swal.fire({
@@ -141,12 +160,9 @@ const ProductUpdate = () => {
     };
   }, [id, units]);
 
-  // Xử lý chọn/hủy chọn danh mục
   const handleCategoryChange = (categoryId) => {
     setSelectedCategoryIds((prev) =>
-      prev.includes(categoryId)
-        ? prev.filter((id) => id !== categoryId)
-        : [...prev, categoryId]
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     );
     setErrors((prev) => ({ ...prev, categories: "" }));
   };
@@ -177,9 +193,7 @@ const ProductUpdate = () => {
     setErrors((prev) => ({
       ...prev,
       productDetails:
-        prev.productDetails?.map((err, i) =>
-          i === index ? { ...err, [name]: "" } : err
-        ) || [],
+        prev.productDetails?.map((err, i) => (i === index ? { ...err, [name]: "" } : err)) || [],
     }));
   };
 
@@ -291,6 +305,18 @@ const ProductUpdate = () => {
     return await getDownloadURL(storageRef);
   };
 
+  const handleAddAttribute = () => {
+    if (newAttribute.trim() && attributes.length < attributeTypes.length * 5) {
+      const currentType = attributeTypes[attributeTypeIndex];
+      setAttributes((prev) => [...prev, { type: currentType.label, value: newAttribute.trim(), key: currentType.key }]);
+      setNewAttribute("");
+    }
+  };
+
+  const handleRemoveAttribute = (index) => {
+    setAttributes((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
@@ -327,11 +353,7 @@ const ProductUpdate = () => {
         errors.price = "Giá bán phải lớn hơn 0";
         isValid = false;
       }
-      if (
-        !detail.conversionRate ||
-        isNaN(parseInt(detail.conversionRate)) ||
-        parseInt(detail.conversionRate) < 1
-      ) {
+      if (!detail.conversionRate || isNaN(parseInt(detail.conversionRate)) || parseInt(detail.conversionRate) < 1) {
         errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
         isValid = false;
       }
@@ -385,15 +407,8 @@ const ProductUpdate = () => {
         const newAdditionalUrls = await Promise.all(
           uploadFiles.additional.map((file) => uploadImage(file))
         );
-        const existingFirebaseUrls = additionalImageUrls.filter(
-          (url) => !previewUrls.includes(url)
-        );
-        additionalImageUrls.splice(
-          0,
-          additionalImageUrls.length,
-          ...existingFirebaseUrls,
-          ...newAdditionalUrls
-        );
+        const existingFirebaseUrls = additionalImageUrls.filter((url) => !previewUrls.includes(url));
+        additionalImageUrls.splice(0, additionalImageUrls.length, ...existingFirebaseUrls, ...newAdditionalUrls);
       }
 
       const updateData = {
@@ -412,7 +427,10 @@ const ProductUpdate = () => {
         mainImage: !!mainImageUrl,
         imageUrl: mainImageUrl || null,
         notMainImages: additionalImageUrls,
-        categoryIds: selectedCategoryIds, // Thêm danh sách categoryIds
+        categoryIds: selectedCategoryIds,
+        sizes: attributes.filter((a) => a.key === "sizes").map((a) => a.value),
+        colors: attributes.filter((a) => a.key === "colors").map((a) => a.value),
+        materials: attributes.filter((a) => a.key === "materials").map((a) => a.value),
       };
 
       await productService.updateProduct(id, updateData);
@@ -435,10 +453,7 @@ const ProductUpdate = () => {
 
   if (isLoading) {
     return (
-      <div
-        className="d-flex justify-content-center align-items-center"
-        style={{ height: "100vh" }}
-      >
+      <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
         <CircularProgress />
       </div>
     );
@@ -532,37 +547,9 @@ const ProductUpdate = () => {
             </div>
           </div>
 
-          {/* Thêm phần chọn danh mục */}
           <div className="col-md-12">
             <div className="card p-4 mt-0">
-              <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
-              <FormGroup>
-                <div className="row">
-                  {categories.map((category) => (
-                    <div key={category.id} className="col-md-4">
-                      <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={selectedCategoryIds.includes(category.id)}
-                            onChange={() => handleCategoryChange(category.id)}
-                            name={category.name}
-                          />
-                        }
-                        label={category.name}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </FormGroup>
-              {errors.categories && <p className="text-danger small">{errors.categories}</p>}
-            </div>
-          </div>
-
-          <div className="col-md-12">
-            <div className="card p-4 mt-0">
-              <h5 className="mb-4">
-                Đơn vị bán <span className="text-danger">*</span>
-              </h5>
+              <h5 className="mb-4">Đơn vị bán <span className="text-danger">*</span></h5>
               {productData.productDetails.map((detail, index) => (
                 <div key={index} className="row mb-3 align-items-center">
                   <div className="col-md-3">
@@ -687,6 +674,106 @@ const ProductUpdate = () => {
 
           <div className="col-md-12">
             <div className="card p-4 mt-0">
+              <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
+              <FormGroup>
+                <div className="row">
+                  {categories.map((category) => (
+                    <div key={category.id} className="col-md-4">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedCategoryIds.includes(category.id)}
+                            onChange={() => handleCategoryChange(category.id)}
+                            name={category.name}
+                          />
+                        }
+                        label={category.name}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </FormGroup>
+              {errors.categories && <p className="text-danger small">{errors.categories}</p>}
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <h5 className="mb-4">Thuộc tính</h5>
+              <p className="text-muted">Sản phẩm có thể thuộc tính khác nhau. Ví dụ: kích thước, màu sắc, chất liệu.</p>
+              {attributes.map((attr, index) => (
+                <div key={index} className="row mb-2 align-items-center border p-2 rounded" style={{ backgroundColor: "#f8f9fa" }}>
+                  <div className="col-md-10">
+                    <TextField
+                      fullWidth
+                      label={attr.type}
+                      value={attr.value}
+                      disabled
+                      variant="outlined"
+                      InputProps={{ readOnly: true }}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    <IconButton color="error" onClick={() => handleRemoveAttribute(index)} style={{ padding: "8px" }}>
+                      <Delete />
+                    </IconButton>
+                  </div>
+                </div>
+              ))}
+              <div className="row mt-3">
+                <div className="col-md-10">
+                  <TextField
+                    fullWidth
+                    select
+                    label="Loại thuộc tính"
+                    value={attributeTypes[attributeTypeIndex].label}
+                    onChange={(e) => {
+                      const newIndex = attributeTypes.findIndex((type) => type.label === e.target.value);
+                      setAttributeTypeIndex(newIndex);
+                    }}
+                    variant="outlined"
+                    disabled={attributes.length >= attributeTypes.length * 5}
+                    InputProps={{
+                      readOnly: attributes.length >= attributeTypes.length * 5,
+                    }}
+                  >
+                    {attributeTypes.map((type) => (
+                      <MenuItem key={type.label} value={type.label}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    fullWidth
+                    label={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()}`}
+                    value={newAttribute}
+                    onChange={(e) => setNewAttribute(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") handleAddAttribute();
+                    }}
+                    variant="outlined"
+                    placeholder={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()} và nhấn Enter`}
+                    disabled={attributes.length >= attributeTypes.length * 5}
+                    style={{ marginTop: "10px" }}
+                  />
+                </div>
+                <div className="col-md-2">
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleAddAttribute}
+                    style={{ padding: "8px 16px", marginTop: "10px" }}
+                    disabled={attributes.length >= attributeTypes.length * 5 || !newAttribute.trim()}
+                  >
+                    Thêm thuộc tính
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
               <div className="imagesUploadSec">
                 <div className="row">
                   <div className="col-md-6 mb-4">
@@ -734,9 +821,7 @@ const ProductUpdate = () => {
                         </div>
                       </label>
                     )}
-                    {errors.mainImage && (
-                      <p className="text-danger small">{errors.mainImage}</p>
-                    )}
+                    {errors.mainImage && <p className="text-danger small">{errors.mainImage}</p>}
                   </div>
                   <div className="col-md-6">
                     <div className="d-flex align-items-center mb-3">

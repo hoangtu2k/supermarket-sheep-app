@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Button, FormControl, MenuItem, Select, InputLabel, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
+import { Button, TextField, IconButton, FormGroup, FormControl, Select, FormControlLabel, Checkbox, MenuItem } from "@mui/material";
+import { Delete as DeleteIcon } from '@mui/icons-material';
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
@@ -15,8 +16,11 @@ const ProductUpload = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [units, setUnits] = useState([]);
-  const [categories, setCategories] = useState([]); // State để lưu danh sách danh mục
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]); // State để lưu danh mục được chọn
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
+  const [attributes, setAttributes] = useState([]); // Danh sách các thuộc tính (Kích thước, Màu sắc, Chất liệu)
+  const [newAttribute, setNewAttribute] = useState(''); // Giá trị thuộc tính mới
+  const [attributeTypeIndex, setAttributeTypeIndex] = useState(0); // Chỉ số loại thuộc tính (0: Kích thước, 1: Màu sắc, 2: Chất liệu)
 
   const [productData, setProductData] = useState({
     name: "",
@@ -42,7 +46,12 @@ const ProductUpload = () => {
     additional: []
   });
 
-  // Lấy danh sách Unit và Categories từ backend
+  const attributeTypes = [
+    { label: "Kích thước", key: "sizes" },
+    { label: "Màu sắc", key: "colors" },
+    { label: "Chất liệu", key: "materials" }
+  ];
+
   useEffect(() => {
     const fetchUnits = async () => {
       try {
@@ -77,7 +86,6 @@ const ProductUpload = () => {
     fetchCategories();
   }, []);
 
-  // Xử lý chọn/hủy chọn danh mục
   const handleCategoryChange = (categoryId) => {
     setSelectedCategoryIds(prev =>
       prev.includes(categoryId)
@@ -191,6 +199,19 @@ const ProductUpload = () => {
     return await getDownloadURL(storageRef);
   };
 
+  const handleAddAttribute = () => {
+    if (newAttribute.trim() && attributes.length < attributeTypes.length * 5) { // Giới hạn tối đa
+      const currentType = attributeTypes[attributeTypeIndex];
+      setAttributes(prev => [...prev, { type: currentType.label, value: newAttribute.trim(), key: currentType.key }]);
+      setNewAttribute('');
+    }
+  };
+
+  const handleRemoveAttribute = (index) => {
+    setAttributes(prev => prev.filter((_, i) => i !== index));
+    // Không cần điều chỉnh attributeTypeIndex vì người dùng giờ có thể chọn loại thủ công
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting || !validateForm()) return;
@@ -215,7 +236,10 @@ const ProductUpload = () => {
         mainImage: true,
         imageUrl: mainImageUrl,
         notMainImages: additionalUrls,
-        categoryIds: selectedCategoryIds // Thêm danh sách categoryIds
+        categoryIds: selectedCategoryIds,
+        sizes: attributes.filter(a => a.key === "sizes").map(a => a.value),
+        colors: attributes.filter(a => a.key === "colors").map(a => a.value),
+        materials: attributes.filter(a => a.key === "materials").map(a => a.value)
       };
 
       await productService.createProduct(payload);
@@ -382,7 +406,6 @@ const ProductUpload = () => {
             </div>
           </div>
 
-          {/* Thêm phần chọn danh mục */}
           <div className="col-md-12">
             <div className="card p-4 mt-0">
               <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
@@ -519,6 +542,85 @@ const ProductUpload = () => {
                     style={{ maxWidth: '200px' }}
                   >
                     Thêm đơn vị bán
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <h5 className="mb-4">Thuộc tính</h5>
+              <p className="text-muted">Sản phẩm có thể thuộc tính khác nhau. Ví dụ: kích thước, màu sắc.</p>
+              {attributes.map((attr, index) => (
+                <div key={index} className="row mb-2 align-items-center border p-2 rounded" style={{ backgroundColor: '#f8f9fa' }}>
+                  <div className="col-md-10">
+                    <TextField
+                      fullWidth
+                      label={attr.type}
+                      value={attr.value}
+                      disabled
+                      variant="outlined"
+                      InputProps={{ readOnly: true }}
+                    />
+                  </div>
+                  <div className="col-md-2">
+                    <IconButton
+                      color="error"
+                      onClick={() => handleRemoveAttribute(index)}
+                      style={{ padding: '8px' }}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </div>
+                </div>
+              ))}
+              <div className="row mt-3">
+                <div className="col-md-10">
+                  <TextField
+                    fullWidth
+                    select
+                    label="Loại thuộc tính"
+                    value={attributeTypes[attributeTypeIndex].label}
+                    onChange={(e) => {
+                      const newIndex = attributeTypes.findIndex(type => type.label === e.target.value);
+                      setAttributeTypeIndex(newIndex);
+                    }}
+                    variant="outlined"
+                    disabled={attributes.length >= attributeTypes.length * 5} // Giới hạn tối đa (ví dụ: 5 giá trị mỗi loại)
+                    InputProps={{
+                      readOnly: attributes.length >= attributeTypes.length * 5,
+                    }}
+                  >
+                    {attributeTypes.map((type) => (
+                      <MenuItem key={type.label} value={type.label}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    fullWidth
+                    label={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()}`}
+                    value={newAttribute}
+                    onChange={(e) => setNewAttribute(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') handleAddAttribute();
+                    }}
+                    variant="outlined"
+                    placeholder={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()} và nhấn Enter`}
+                    disabled={attributes.length >= attributeTypes.length * 5}
+                    style={{ marginTop: '10px' }}
+                  />
+                </div>
+                <div className="col-md-2">
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleAddAttribute}
+                    style={{ padding: '8px 16px', marginTop: '10px' }}
+                    disabled={attributes.length >= attributeTypes.length * 5 || !newAttribute.trim()}
+                  >
+                    Thêm thuộc tính
                   </Button>
                 </div>
               </div>
