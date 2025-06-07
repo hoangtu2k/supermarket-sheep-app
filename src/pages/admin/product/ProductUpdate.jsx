@@ -1,41 +1,54 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, TextField, IconButton, FormGroup, FormControl, Select, FormControlLabel, Checkbox, MenuItem } from "@mui/material";
+import {
+  Button,
+  TextField,
+  IconButton,
+  FormGroup,
+  FormControl,
+  Select,
+  FormControlLabel,
+  Checkbox,
+  MenuItem,
+  CircularProgress,
+} from "@mui/material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
 import { LazyLoadImage } from "react-lazy-load-image-component";
-import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
+import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus, FaTrash, FaSync } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
 import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
-import CircularProgress from "@mui/material/CircularProgress";
 import axios from "axios";
-import { Delete } from "@mui/icons-material";
+import debounce from "lodash.debounce";
 
 const ProductUpdate = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingSKU, setIsCheckingSKU] = useState(false);
+  const [checkingBarcodes, setCheckingBarcodes] = useState({});
   const [errors, setErrors] = useState({});
   const [units, setUnits] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
+  const [attributes, setAttributes] = useState([]);
+  const [newAttribute, setNewAttribute] = useState("");
+  const [attributeTypeIndex, setAttributeTypeIndex] = useState(0);
   const fileInputRef = useRef(null);
+  const initialProductDataRef = useRef(null);
 
   const [productData, setProductData] = useState({
+    code: "",
     name: "",
     description: "",
     weight: "",
     quantity: 0,
+    status: "ACTIVE",
     productDetails: [
-      {
-        id: null,
-        code: "",
-        unitId: "",
-        conversionRate: 1,
-        price: "",
-      },
+      { id: null, barCode: "", unitId: "", conversionRate: 1, price: "" },
     ],
     mainImage: false,
     imageUrl: "",
@@ -56,15 +69,63 @@ const ProductUpdate = () => {
   });
 
   const [previewUrls, setPreviewUrls] = useState([]);
-  const [attributes, setAttributes] = useState([]); // Danh sách thuộc tính (sizes, colors, materials)
-  const [newAttribute, setNewAttribute] = useState("");
-  const [attributeTypeIndex, setAttributeTypeIndex] = useState(0);
 
   const attributeTypes = [
     { label: "Kích thước", key: "sizes" },
     { label: "Màu sắc", key: "colors" },
     { label: "Chất liệu", key: "materials" },
   ];
+
+  // Debounced SKU validation
+  const debouncedCheckSKU = useMemo(
+    () =>
+      debounce(async (code) => {
+        if (!code.trim()) return;
+        setIsCheckingSKU(true);
+        try {
+          const response = await axios.get(`/admin/products/check-sku?code=${encodeURIComponent(code)}&excludeId=${id}`);
+          setErrors((prev) => ({
+            ...prev,
+            code: response.data.exists ? "Mã SKU đã tồn tại" : "",
+          }));
+        } catch (error) {
+          console.error("Error checking SKU:", error);
+          Swal.fire("Lỗi", "Không thể kiểm tra mã SKU", "error");
+        } finally {
+          setIsCheckingSKU(false);
+        }
+      }, 500),
+    [id]
+  );
+
+  // Debounced Barcode validation
+  const debouncedCheckBarcode = useMemo(
+    () =>
+      debounce(async (barCode, index) => {
+        if (!barCode.trim()) {
+          setCheckingBarcodes((prev) => ({ ...prev, [index]: false }));
+          return;
+        }
+        setCheckingBarcodes((prev) => ({ ...prev, [index]: true }));
+        try {
+          const response = await axios.get(
+            `/admin/products/check-barcode?barCode=${encodeURIComponent(barCode)}&excludeProductId=${id}`
+          );
+          setErrors((prev) => ({
+            ...prev,
+            productDetails: prev.productDetails?.map((err, i) =>
+              i === index ? { ...err, barCode: response.data.exists ? "Mã Barcode đã tồn tại" : "" } : err
+            ) || [],
+          }));
+        } catch (error) {
+          console.error("Error checking barcode:", error);
+          Swal.fire("Lỗi", "Không thể kiểm tra mã Barcode", "error");
+        } finally {
+          setCheckingBarcodes((prev) => ({ ...prev, [index]: false }));
+        }
+      }, 500),
+    [id]
+  );
 
   useEffect(() => {
     const fetchUnits = async () => {
@@ -89,7 +150,12 @@ const ProductUpdate = () => {
 
     fetchUnits();
     fetchCategories();
-  }, []);
+
+    return () => {
+      debouncedCheckSKU.cancel();
+      debouncedCheckBarcode.cancel();
+    };
+  }, [debouncedCheckSKU, debouncedCheckBarcode]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -98,35 +164,32 @@ const ProductUpdate = () => {
         const response = await productService.getProductById(id);
         const product = response.data;
 
-        setProductData({
+        const fetchedData = {
+          code: product.code || "",
           name: product.name || "",
           description: product.description || "",
-          weight: product.weight || "",
+          weight: product.weight ? product.weight.toString() : "",
           quantity: product.quantity || 0,
+          status: product.status || "ACTIVE",
           productDetails: product.productDetails?.length
             ? product.productDetails.map((detail) => ({
-                id: detail.id,
-                code: detail.code || "",
-                unitId: detail.unitId || (units.length > 0 ? units[0].id : ""),
-                conversionRate: detail.conversionRate || 1,
-                price: detail.price ? detail.price.toString() : "",
-              }))
-            : [
-                {
-                  id: null,
-                  code: "",
-                  unitId: units.length > 0 ? units[0].id : "",
-                  conversionRate: 1,
-                  price: "",
-                },
-              ],
+              id: detail.id,
+              barCode: detail.barCode || "",
+              unitId: detail.unitId || "",
+              conversionRate: detail.conversionRate || 1,
+              price: detail.price ? detail.price.toString() : "",
+            }))
+            : [{ id: null, barCode: "", unitId: "", conversionRate: 1, price: "" }],
           mainImage: !!product.imageUrl,
           imageUrl: product.imageUrl || "",
           notMainImages: product.notMainImages || [],
           sizes: product.sizes || [],
           colors: product.colors || [],
           materials: product.materials || [],
-        });
+        };
+
+        setProductData(fetchedData);
+        initialProductDataRef.current = fetchedData;
 
         setImagePreviews({
           main: product.imageUrl || null,
@@ -141,11 +204,7 @@ const ProductUpdate = () => {
 
         setSelectedCategoryIds(product.categoryIds || []);
       } catch (error) {
-        Swal.fire({
-          title: "Lỗi",
-          text: "Không thể tải sản phẩm.",
-          icon: "error",
-        });
+        Swal.fire("Lỗi", "Không thể tải sản phẩm", "error");
       } finally {
         setIsLoading(false);
       }
@@ -160,75 +219,84 @@ const ProductUpdate = () => {
     };
   }, [id, units]);
 
-  const handleCategoryChange = (categoryId) => {
+  const handleCategoryChange = useCallback((categoryId) => {
     setSelectedCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     );
     setErrors((prev) => ({ ...prev, categories: "" }));
-  };
+  }, []);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "weight" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
-    if (name === "quantity" && !/^\d*$/.test(value) && value !== "") return;
-    setProductData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
+  const handleInputChange = useCallback(
+    (e) => {
+      const { name, value } = e.target;
+      if (name === "weight" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
+      if (name === "quantity" && !/^\d*$/.test(value) && value !== "") return;
+      setProductData((prev) => ({ ...prev, [name]: value }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+      if (name === "code" && value.trim()) {
+        debouncedCheckSKU(value);
+      } else if (name === "code") {
+        setErrors((prev) => ({ ...prev, code: "" }));
+      }
+    },
+    [debouncedCheckSKU]
+  );
 
-  const handleDetailChange = (index, e) => {
-    const { name, value } = e.target;
-    if (name === "conversionRate" && !/^\d*$/.test(value) && value !== "") return;
-    if (name === "price" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
-    setProductData((prev) => {
-      const newDetails = [...prev.productDetails];
-      newDetails[index] = {
-        ...newDetails[index],
-        [name]: value,
-      };
-      return { ...prev, productDetails: newDetails };
-    });
-    setErrors((prev) => ({
-      ...prev,
-      productDetails:
-        prev.productDetails?.map((err, i) => (i === index ? { ...err, [name]: "" } : err)) || [],
-    }));
-  };
+  const handleDetailChange = useCallback(
+    (index, e) => {
+      const { name, value } = e.target;
+      if (name === "conversionRate" && !/^\d*$/.test(value) && value !== "") return;
+      if (name === "price" && !/^\d*\.?\d*$/.test(value) && value !== "") return;
+      setProductData((prev) => {
+        const newDetails = [...prev.productDetails];
+        newDetails[index] = { ...newDetails[index], [name]: value };
+        return { ...prev, productDetails: newDetails };
+      });
+      setErrors((prev) => ({
+        ...prev,
+        productDetails:
+          prev.productDetails?.map((err, i) => (i === index ? { ...err, [name]: "" } : err)) || [],
+      }));
+      if (name === "barCode" && value.trim()) {
+        debouncedCheckBarcode(value, index);
+      } else if (name === "barCode") {
+        setErrors((prev) => ({
+          ...prev,
+          productDetails:
+            prev.productDetails?.map((err, i) => (i === index ? { ...err, barCode: "" } : err)) || [],
+        }));
+      }
+    },
+    [debouncedCheckBarcode]
+  );
 
-  const addProductDetail = () => {
+  const addProductDetail = useCallback(() => {
     const lastDetail = productData.productDetails[productData.productDetails.length - 1];
     if (
-      !lastDetail.code.trim() ||
+      !lastDetail.barCode.trim() ||
       !lastDetail.unitId ||
       !lastDetail.price ||
       parseFloat(lastDetail.price) <= 0 ||
-      parseInt(lastDetail.conversionRate) < 1
+      parseInt(lastDetail.conversionRate) < 1 ||
+      errors.productDetails?.[productData.productDetails.length - 1]?.barCode
     ) {
-      Swal.fire("Lỗi", "Vui lòng hoàn thành đơn vị bán trước khi thêm mới", "warning");
+      Swal.fire("Lỗi", "Vui lòng hoàn thành và kiểm tra đơn vị bán trước khi thêm mới", "warning");
       return;
     }
     setProductData((prev) => ({
       ...prev,
       productDetails: [
         ...prev.productDetails,
-        {
-          id: null,
-          code: "",
-          unitId: units.length > 0 ? units[0].id : "",
-          conversionRate: 1,
-          price: "",
-        },
+        { id: null, barCode: "", unitId: units.length > 0 ? units[0].id : "", conversionRate: 1, price: "" },
       ],
     }));
     setErrors((prev) => ({
       ...prev,
       productDetails: [...(prev.productDetails || []), {}],
     }));
-  };
+  }, [productData.productDetails, units, errors.productDetails]);
 
-  const removeProductDetail = (index) => {
+  const removeProductDetail = useCallback((index) => {
     if (productData.productDetails.length === 1) {
       Swal.fire("Lỗi", "Phải có ít nhất một đơn vị bán", "warning");
       return;
@@ -241,9 +309,14 @@ const ProductUpdate = () => {
       ...prev,
       productDetails: prev.productDetails?.filter((_, i) => i !== index) || [],
     }));
-  };
+    setCheckingBarcodes((prev) => {
+      const newChecking = { ...prev };
+      delete newChecking[index];
+      return newChecking;
+    });
+  }, [productData.productDetails]);
 
-  const handleMainImageChange = (e) => {
+  const handleMainImageChange = useCallback((e) => {
     const file = e.target.files[0];
     if (!file) return;
     const previewUrl = URL.createObjectURL(file);
@@ -252,13 +325,13 @@ const ProductUpdate = () => {
     setUploadFiles((prev) => ({ ...prev, main: file }));
     setProductData((prev) => ({ ...prev, mainImage: true }));
     setErrors((prev) => ({ ...prev, mainImage: "" }));
-  };
+  }, []);
 
-  const handleAdditionalImagesChange = (e) => {
+  const handleAdditionalImagesChange = useCallback((e) => {
     const files = Array.from(e.target.files);
     if (!files.length || imagePreviews.additional.length + files.length > 5) {
       if (imagePreviews.additional.length + files.length > 5) {
-        Swal.fire("Lỗi", "Tối đa 5 ảnh phụ.", "error");
+        Swal.fire("Lỗi", "Tối đa 5 ảnh phụ", "error");
       }
       return;
     }
@@ -275,9 +348,9 @@ const ProductUpdate = () => {
       ...prev,
       additional: [...prev.additional, ...files],
     }));
-  };
+  }, [imagePreviews.additional]);
 
-  const removeImage = (type, index) => {
+  const removeImage = useCallback((type, index) => {
     if (type === "main") {
       setImagePreviews((prev) => ({ ...prev, main: null }));
       setUploadFiles((prev) => ({ ...prev, main: null }));
@@ -297,7 +370,7 @@ const ProductUpdate = () => {
         notMainImages: prev.notMainImages.filter((_, i) => i !== index),
       }));
     }
-  };
+  }, []);
 
   const uploadImage = async (file) => {
     const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
@@ -305,21 +378,68 @@ const ProductUpdate = () => {
     return await getDownloadURL(storageRef);
   };
 
-  const handleAddAttribute = () => {
-    if (newAttribute.trim() && attributes.length < attributeTypes.length * 5) {
-      const currentType = attributeTypes[attributeTypeIndex];
-      setAttributes((prev) => [...prev, { type: currentType.label, value: newAttribute.trim(), key: currentType.key }]);
-      setNewAttribute("");
+  const handleAddAttribute = useCallback(() => {
+    if (!newAttribute.trim()) {
+      Swal.fire("Lỗi", "Vui lòng nhập giá trị thuộc tính", "warning");
+      return;
     }
-  };
+    if (
+      attributes.some(
+        (attr) => attr.value.toLowerCase() === newAttribute.trim().toLowerCase() && attr.key === attributeTypes[attributeTypeIndex].key
+      )
+    ) {
+      Swal.fire("Lỗi", "Giá trị thuộc tính đã tồn tại", "warning");
+      return;
+    }
+    if (attributes.length >= attributeTypes.length * 5) {
+      Swal.fire("Lỗi", "Đã đạt số lượng thuộc tính tối đa", "warning");
+      return;
+    }
+    const currentType = attributeTypes[attributeTypeIndex];
+    setAttributes((prev) => [...prev, { type: currentType.label, value: newAttribute.trim(), key: currentType.key }]);
+    setNewAttribute("");
+  }, [newAttribute, attributes, attributeTypeIndex]);
 
-  const handleRemoveAttribute = (index) => {
+  const handleRemoveAttribute = useCallback((index) => {
     setAttributes((prev) => prev.filter((_, i) => i !== index));
-  };
+  }, []);
 
-  const validateForm = () => {
-    const newErrors = {};
+  const resetForm = useCallback(() => {
+    if (initialProductDataRef.current) {
+      setProductData(initialProductDataRef.current);
+      setImagePreviews({
+        main: initialProductDataRef.current.imageUrl || null,
+        additional: initialProductDataRef.current.notMainImages || [],
+      });
+      setUploadFiles({ main: null, additional: [] });
+      setSelectedCategoryIds(initialProductDataRef.current.categoryIds || []);
+      setAttributes([
+        ...(initialProductDataRef.current.sizes || []).map((size) => ({ type: "Kích thước", value: size, key: "sizes" })),
+        ...(initialProductDataRef.current.colors || []).map((color) => ({ type: "Màu sắc", value: color, key: "colors" })),
+        ...(initialProductDataRef.current.materials || []).map((material) => ({
+          type: "Chất liệu",
+          value: material,
+          key: "materials",
+        })),
+      ]);
+      setNewAttribute("");
+      setErrors({});
+      setCheckingBarcodes({});
+      Swal.fire("Thành công", "Đã đặt lại biểu mẫu", "success");
+    }
+  }, []);
+
+  const validateForm = useCallback(() => {
     let isValid = true;
+    const newErrors = {};
+
+    if (!productData.code.trim()) {
+      newErrors.code = "Mã SKU là bắt buộc";
+      isValid = false;
+    } else if (productData.code.length > 50) {
+      newErrors.code = "Mã SKU không được vượt quá 50 ký tự";
+      isValid = false;
+    }
 
     if (!productData.name.trim()) {
       newErrors.name = "Tên sản phẩm là bắt buộc";
@@ -336,13 +456,13 @@ const ProductUpdate = () => {
       isValid = false;
     }
 
-    const detailErrors = productData.productDetails?.map((detail, index) => {
+    const detailErrors = productData.productDetails.map((detail, index) => {
       const errors = {};
-      if (!detail.code.trim()) {
-        errors.code = "Mã code là bắt buộc";
+      if (!detail.barCode.trim()) {
+        errors.barCode = "Mã Barcode là bắt buộc";
         isValid = false;
-      } else if (detail.code.length > 50) {
-        errors.code = "Mã code không được vượt quá 50 ký tự";
+      } else if (detail.barCode.length > 50) {
+        errors.barCode = "Mã Barcode không được vượt quá 50 ký tự";
         isValid = false;
       }
       if (!detail.unitId) {
@@ -360,9 +480,9 @@ const ProductUpdate = () => {
       return errors;
     });
 
-    const codes = productData.productDetails.map((d) => d.code.trim()).filter((c) => c);
-    if (new Set(codes).size !== codes.length) {
-      Swal.fire("Lỗi", "Mã code không được trùng lặp", "warning");
+    const barCodes = productData.productDetails.map((d) => d.barCode.trim()).filter((c) => c);
+    if (new Set(barCodes).size !== barCodes.length) {
+      Swal.fire("Lỗi", "Mã Barcode không được trùng lặp trong sản phẩm", "warning");
       isValid = false;
     }
 
@@ -371,90 +491,138 @@ const ProductUpdate = () => {
       isValid = false;
     }
 
+    if (errors.code === "Mã SKU đã tồn tại") {
+      isValid = false;
+    }
+
+    if (errors.productDetails?.some((err) => err.barCode === "Mã Barcode đã tồn tại")) {
+      isValid = false;
+    }
+
     setErrors({ ...newErrors, productDetails: detailErrors });
     if (!isValid) {
       Swal.fire("Lỗi", "Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc", "error");
     }
     return isValid;
-  };
+  }, [productData, imagePreviews, selectedCategoryIds, errors]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      if (isSubmitting || !validateForm()) return;
 
-    if (isSubmitting || !validateForm()) return;
+      const result = await Swal.fire({
+        title: "Xác nhận",
+        text: "Bạn có chắc chắn muốn cập nhật sản phẩm này không?",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Có",
+        cancelButtonText: "Không",
+      });
 
-    const result = await Swal.fire({
-      title: "Xác nhận",
-      text: "Bạn có chắc chắn muốn cập nhật sản phẩm này không?",
+      if (!result.isConfirmed) return;
+
+      setIsSubmitting(true);
+      try {
+        let mainImageUrl = productData.imageUrl;
+        if (uploadFiles.main) {
+          mainImageUrl = await uploadImage(uploadFiles.main);
+        }
+
+        const additionalImageUrls = [...productData.notMainImages];
+        if (uploadFiles.additional.length > 0) {
+          const newAdditionalUrls = await Promise.all(uploadFiles.additional.map((file) => uploadImage(file)));
+          const existingFirebaseUrls = additionalImageUrls.filter((url) => !previewUrls.includes(url));
+          additionalImageUrls.splice(0, additionalImageUrls.length, ...existingFirebaseUrls, ...newAdditionalUrls);
+        }
+
+        const updateData = {
+          code: productData.code.trim(),
+          name: productData.name.trim(),
+          description: productData.description.trim() || null,
+          weight: productData.weight ? parseFloat(productData.weight) : null,
+          quantity: productData.quantity ? parseInt(productData.quantity) : 0,
+          status: productData.status,
+          productDetails: productData.productDetails.map((detail) => ({
+            id: detail.id,
+            barCode: detail.barCode.trim() || null,
+            unitId: parseInt(detail.unitId),
+            conversionRate: parseInt(detail.conversionRate) || 1,
+            price: parseFloat(detail.price).toFixed(2),
+          })),
+          mainImage: !!mainImageUrl,
+          imageUrl: mainImageUrl || null,
+          notMainImages: additionalImageUrls,
+          categoryIds: selectedCategoryIds,
+          sizes: attributes.filter((a) => a.key === "sizes").map((a) => a.value),
+          colors: attributes.filter((a) => a.key === "colors").map((a) => a.value),
+          materials: attributes.filter((a) => a.key === "materials").map((a) => a.value),
+        };
+
+        await productService.updateProduct(id, updateData);
+        Swal.fire("Thành công", "Cập nhật sản phẩm thành công", "success").then(() =>
+          navigate("/admin/products")
+        );
+      } catch (error) {
+        let errorMessage = error.response?.data?.message || "Cập nhật sản phẩm thất bại";
+        if (errorMessage.includes("Mã Barcode")) {
+          Swal.fire("Lỗi", errorMessage, "error");
+        } else {
+          Swal.fire("Lỗi", errorMessage, "error");
+        }
+        // Update errors state to reflect barcode issues
+        if (errorMessage.includes("Mã Barcode")) {
+          const barcodeError = errorMessage.match(/'([^']+)'/)?.[1];
+          if (barcodeError) {
+            setErrors((prev) => ({
+              ...prev,
+              productDetails: productData.productDetails.map((detail, i) => ({
+                ...prev.productDetails?.[i],
+                barCode: detail.barCode === barcodeError ? "Mã Barcode đã tồn tại" : prev.productDetails?.[i]?.barCode,
+              })),
+            }));
+          }
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [isSubmitting, validateForm, productData, uploadFiles, selectedCategoryIds, attributes, id, navigate, previewUrls]
+  );
+
+  const handleDeleteOrReset = useCallback(async () => {
+    const action = productData.status === "ACTIVE" ? "xóa" : "kích hoạt lại";
+    const confirmation = await Swal.fire({
+      title: `Xác nhận ${action} sản phẩm`,
+      text: `Bạn có chắc chắn muốn ${action} sản phẩm này không?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Có",
       cancelButtonText: "Không",
     });
 
-    if (!result.isConfirmed) return;
-
-    setIsSubmitting(true);
+    if (!confirmation.isConfirmed) return;
 
     try {
-      let mainImageUrl = productData.imageUrl;
-      if (uploadFiles.main) {
-        mainImageUrl = await uploadImage(uploadFiles.main);
+      if (productData.status === "ACTIVE") {
+        await productService.deleteProduct(id);
+        Swal.fire("Thành công", "Sản phẩm đã được xóa", "success");
+      } else {
+        await productService.resetProduct(id);
+        Swal.fire("Thành công", "Sản phẩm đã được kích hoạt lại", "success");
+        setProductData((prev) => ({ ...prev, status: "ACTIVE" }));
       }
-
-      const additionalImageUrls = [...productData.notMainImages];
-      if (uploadFiles.additional.length > 0) {
-        const newAdditionalUrls = await Promise.all(
-          uploadFiles.additional.map((file) => uploadImage(file))
-        );
-        const existingFirebaseUrls = additionalImageUrls.filter((url) => !previewUrls.includes(url));
-        additionalImageUrls.splice(0, additionalImageUrls.length, ...existingFirebaseUrls, ...newAdditionalUrls);
-      }
-
-      const updateData = {
-        name: productData.name.trim(),
-        description: productData.description.trim() || null,
-        weight: productData.weight ? parseFloat(productData.weight) : null,
-        quantity: productData.quantity ? parseInt(productData.quantity) : 0,
-        status: "ACTIVE",
-        productDetails: productData.productDetails.map((detail) => ({
-          id: detail.id,
-          code: detail.code.trim() || null,
-          unitId: parseInt(detail.unitId),
-          conversionRate: parseInt(detail.conversionRate) || 1,
-          price: parseFloat(detail.price).toFixed(2),
-        })),
-        mainImage: !!mainImageUrl,
-        imageUrl: mainImageUrl || null,
-        notMainImages: additionalImageUrls,
-        categoryIds: selectedCategoryIds,
-        sizes: attributes.filter((a) => a.key === "sizes").map((a) => a.value),
-        colors: attributes.filter((a) => a.key === "colors").map((a) => a.value),
-        materials: attributes.filter((a) => a.key === "materials").map((a) => a.value),
-      };
-
-      await productService.updateProduct(id, updateData);
-
-      Swal.fire({
-        title: "Thành công",
-        text: "Cập nhật sản phẩm thành công.",
-        icon: "success",
-      }).then(() => navigate("/admin/products"));
+      navigate("/admin/products");
     } catch (error) {
-      Swal.fire({
-        title: "Lỗi",
-        text: error.response?.data?.message || "Đã có lỗi xảy ra.",
-        icon: "error",
-      });
-    } finally {
-      setIsSubmitting(false);
+      Swal.fire("Lỗi", error.response?.data?.message || `${action} sản phẩm thất bại`, "error");
     }
-  };
+  }, [productData.status, id, navigate]);
 
   if (isLoading) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
         <CircularProgress />
+        <span className="ms-2">Đang tải sản phẩm...</span>
       </div>
     );
   }
@@ -480,10 +648,33 @@ const ProductUpdate = () => {
           </div>
 
           <div className="col-md-12">
-            <div className="card p-3 mt-0">
+            <div className="card p-3 mt-2">
               <h5 className="mb-4">Thông tin cơ bản</h5>
               <div className="row">
                 <div className="col-md-6">
+                  <div className="form-group">
+                    <h6>
+                      Mã SKU <span className="text-danger">*</span>
+                    </h6>
+                    <div className="position-relative">
+                      <input
+                        type="text"
+                        name="code"
+                        value={productData.code}
+                        onChange={handleInputChange}
+                        placeholder="Nhập mã sản phẩm"
+                        required
+                        aria-label="Mã SKU sản phẩm"
+                      />
+                      {isCheckingSKU && (
+                        <CircularProgress
+                          size={20}
+                          style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)" }}
+                        />
+                      )}
+                    </div>
+                    {errors.code && <p className="text-danger small">{errors.code}</p>}
+                  </div>
                   <div className="form-group">
                     <h6>
                       Tên sản phẩm <span className="text-danger">*</span>
@@ -495,8 +686,24 @@ const ProductUpdate = () => {
                       onChange={handleInputChange}
                       placeholder="Nhập tên sản phẩm"
                       required
+                      aria-label="Tên sản phẩm"
                     />
                     {errors.name && <p className="text-danger small">{errors.name}</p>}
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="form-group">
+                    <h6>Số lượng</h6>
+                    <input
+                      type="number"
+                      name="quantity"
+                      value={productData.quantity}
+                      onChange={handleInputChange}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      placeholder="Nhập số lượng"
+                      min="0"
+                      aria-label="Số lượng sản phẩm"
+                    />
                   </div>
                   <div className="form-group">
                     <h6>Mô tả</h6>
@@ -506,40 +713,31 @@ const ProductUpdate = () => {
                       onChange={handleInputChange}
                       rows={5}
                       placeholder="Nhập mô tả sản phẩm"
+                      aria-label="Mô tả sản phẩm"
                     />
                   </div>
                 </div>
-                <div className="col-md-6">
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-3 mt-2">
+              <h5 className="mb-4">Vận chuyển</h5>
+              <div className="row">
+                <div className="col-md-12">
                   <div className="form-group">
                     <h6>Trọng lượng (kg)</h6>
                     <input
-                      type="text"
+                      type="number"
                       name="weight"
                       value={productData.weight}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (/^\d*\.?\d*$/.test(value) || value === "") {
-                          handleInputChange(e);
-                        }
-                      }}
+                      onChange={handleInputChange}
                       onWheel={(e) => e.currentTarget.blur()}
                       placeholder="Nhập trọng lượng"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <h6>Số lượng</h6>
-                    <input
-                      type="text"
-                      name="quantity"
-                      value={productData.quantity}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        if (/^\d*$/.test(value) || value === "") {
-                          handleInputChange(e);
-                        }
-                      }}
-                      onWheel={(e) => e.currentTarget.blur()}
-                      placeholder="Nhập số lượng"
+                      min="0"
+                      step="0.01"
+                      aria-label="Trọng lượng sản phẩm"
                     />
                   </div>
                 </div>
@@ -548,133 +746,10 @@ const ProductUpdate = () => {
           </div>
 
           <div className="col-md-12">
-            <div className="card p-4 mt-0">
-              <h5 className="mb-4">Đơn vị bán <span className="text-danger">*</span></h5>
-              {productData.productDetails.map((detail, index) => (
-                <div key={index} className="row mb-3 align-items-center">
-                  <div className="col-md-3">
-                    <div className="form-group">
-                      <h6>
-                        Mã code <span className="text-danger">*</span>
-                      </h6>
-                      <input
-                        type="text"
-                        name="code"
-                        value={detail.code}
-                        onChange={(e) => handleDetailChange(index, e)}
-                        placeholder="Nhập mã code"
-                        required
-                      />
-                      {errors.productDetails?.[index]?.code && (
-                        <p className="text-danger small">{errors.productDetails[index].code}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-md-2">
-                    <div className="form-group">
-                      <h6>
-                        Đơn vị <span className="text-danger">*</span>
-                      </h6>
-                      <FormControl fullWidth>
-                        <Select
-                          name="unitId"
-                          value={detail.unitId}
-                          onChange={(e) => handleDetailChange(index, e)}
-                          required
-                        >
-                          {units.map((unit) => (
-                            <MenuItem key={unit.id} value={unit.id}>
-                              {unit.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      {errors.productDetails?.[index]?.unitId && (
-                        <p className="text-danger small">{errors.productDetails[index].unitId}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-md-2">
-                    <div className="form-group">
-                      <h6>
-                        Tỷ lệ quy đổi <span className="text-danger">*</span>
-                      </h6>
-                      <input
-                        type="text"
-                        name="conversionRate"
-                        value={detail.conversionRate}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (/^\d*$/.test(value) || value === "") {
-                            handleDetailChange(index, e);
-                          }
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="Nhập tỷ lệ"
-                        required
-                      />
-                      {errors.productDetails?.[index]?.conversionRate && (
-                        <p className="text-danger small">{errors.productDetails[index].conversionRate}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-md-2">
-                    <div className="form-group">
-                      <h6>
-                        Giá bán <span className="text-danger">*</span>
-                      </h6>
-                      <input
-                        type="text"
-                        name="price"
-                        value={detail.price}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (/^\d*\.?\d*$/.test(value) || value === "") {
-                            handleDetailChange(index, e);
-                          }
-                        }}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        placeholder="Nhập giá bán"
-                        required
-                      />
-                      {errors.productDetails?.[index]?.price && (
-                        <p className="text-danger small">{errors.productDetails[index].price}</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-md-3">
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      onClick={() => removeProductDetail(index)}
-                      fullWidth
-                      disabled={productData.productDetails.length === 1}
-                    >
-                      Xóa
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              <div className="row mt-3">
-                <div className="col-md-12 text-center">
-                  <Button
-                    type="button"
-                    variant="contained"
-                    color="success"
-                    onClick={addProductDetail}
-                    startIcon={<FaPlus />}
-                    style={{ maxWidth: "200px" }}
-                  >
-                    Thêm đơn vị bán
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="col-md-12">
-            <div className="card p-4 mt-0">
-              <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
+            <div className="card p-4 mt-2">
+              <h5 className="mb-4">
+                Danh mục <span className="text-danger">*</span>
+              </h5>
               <FormGroup>
                 <div className="row">
                   {categories.map((category) => (
@@ -698,11 +773,149 @@ const ProductUpdate = () => {
           </div>
 
           <div className="col-md-12">
-            <div className="card p-4 mt-0">
+            <div className="card p-4 mt-2">
+              <h5 className="mb-4">
+                Đơn vị bán <span className="text-danger">*</span>
+              </h5>
+              {productData.productDetails.map((detail, index) => (
+                <div key={index} className="row mb-3 align-items-center">
+                  <div className="col-md-3">
+                    <div className="form-group">
+                      <h6>
+                        Mã Barcode <span className="text-danger">*</span>
+                      </h6>
+                      <div className="position-relative">
+                        <input
+                          type="text"
+                          name="barCode"
+                          value={detail.barCode}
+                          onChange={(e) => handleDetailChange(index, e)}
+                          placeholder="Nhập mã barcode"
+                          required
+                          aria-label={`Mã Barcode ${index + 1}`}
+                        />
+                        {checkingBarcodes[index] && (
+                          <CircularProgress
+                            size={20}
+                            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)" }}
+                          />
+                        )}
+                      </div>
+                      {errors.productDetails?.[index]?.barCode && (
+                        <p className="text-danger small">{errors.productDetails[index].barCode}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>
+                        Đơn vị <span className="text-danger">*</span>
+                      </h6>
+                      <FormControl fullWidth>
+                        <Select
+                          name="unitId"
+                          value={detail.unitId}
+                          onChange={(e) => handleDetailChange(index, e)}
+                          required
+                          aria-label={`Đơn vị ${index + 1}`}
+                        >
+                          {units.map((unit) => (
+                            <MenuItem key={unit.id} value={unit.id}>
+                              {unit.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      {errors.productDetails?.[index]?.unitId && (
+                        <p className="text-danger small">{errors.productDetails[index].unitId}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>
+                        Tỷ lệ quy đổi <span className="text-danger">*</span>
+                      </h6>
+                      <input
+                        type="number"
+                        name="conversionRate"
+                        value={detail.conversionRate}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder="Nhập tỷ lệ"
+                        min="1"
+                        required
+                        aria-label={`Tỷ lệ quy đổi ${index + 1}`}
+                      />
+                      {errors.productDetails?.[index]?.conversionRate && (
+                        <p className="text-danger small">{errors.productDetails[index].conversionRate}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-md-2">
+                    <div className="form-group">
+                      <h6>
+                        Giá bán <span className="text-danger">*</span>
+                      </h6>
+                      <input
+                        type="number"
+                        name="price"
+                        value={detail.price}
+                        onChange={(e) => handleDetailChange(index, e)}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        placeholder="Nhập giá bán"
+                        min="0"
+                        step="0.01"
+                        required
+                        aria-label={`Giá bán ${index + 1}`}
+                      />
+                      {errors.productDetails?.[index]?.price && (
+                        <p className="text-danger small">{errors.productDetails[index].price}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={() => removeProductDetail(index)}
+                      fullWidth
+                      disabled={productData.productDetails.length === 1}
+                      aria-label={`Xóa đơn vị bán ${index + 1}`}
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              <div className="row mt-3">
+                <div className="col-md-12 text-center">
+                  <Button
+                    type="button"
+                    variant="contained"
+                    color="success"
+                    onClick={addProductDetail}
+                    startIcon={<FaPlus />}
+                    style={{ maxWidth: "200px" }}
+                    aria-label="Thêm đơn vị bán"
+                  >
+                    Thêm đơn vị bán
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-md-12">
+            <div className="card p-4 mt-2">
               <h5 className="mb-4">Thuộc tính</h5>
-              <p className="text-muted">Sản phẩm có thể thuộc tính khác nhau. Ví dụ: kích thước, màu sắc, chất liệu.</p>
+              <p className="text-muted">Sản phẩm có thể có các thuộc tính như kích thước, màu sắc, chất liệu.</p>
               {attributes.map((attr, index) => (
-                <div key={index} className="row mb-2 align-items-center border p-2 rounded" style={{ backgroundColor: "#f8f9fa" }}>
+                <div
+                  key={index}
+                  className="row mb-2 align-items-center border p-2 rounded"
+                  style={{ backgroundColor: "#f8f9fa" }}
+                >
                   <div className="col-md-10">
                     <TextField
                       fullWidth
@@ -711,11 +924,17 @@ const ProductUpdate = () => {
                       disabled
                       variant="outlined"
                       InputProps={{ readOnly: true }}
+                      aria-label={`${attr.type} ${attr.value}`}
                     />
                   </div>
                   <div className="col-md-2">
-                    <IconButton color="error" onClick={() => handleRemoveAttribute(index)} style={{ padding: "8px" }}>
-                      <Delete />
+                    <IconButton
+                      color="error"
+                      onClick={() => handleRemoveAttribute(index)}
+                      style={{ padding: "8px" }}
+                      aria-label={`Xóa thuộc tính ${attr.value}`}
+                    >
+                      <DeleteIcon />
                     </IconButton>
                   </div>
                 </div>
@@ -733,9 +952,7 @@ const ProductUpdate = () => {
                     }}
                     variant="outlined"
                     disabled={attributes.length >= attributeTypes.length * 5}
-                    InputProps={{
-                      readOnly: attributes.length >= attributeTypes.length * 5,
-                    }}
+                    aria-label="Chọn loại thuộc tính"
                   >
                     {attributeTypes.map((type) => (
                       <MenuItem key={type.label} value={type.label}>
@@ -755,6 +972,7 @@ const ProductUpdate = () => {
                     placeholder={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()} và nhấn Enter`}
                     disabled={attributes.length >= attributeTypes.length * 5}
                     style={{ marginTop: "10px" }}
+                    aria-label={`Nhập ${attributeTypes[attributeTypeIndex].label.toLowerCase()}`}
                   />
                 </div>
                 <div className="col-md-2">
@@ -764,6 +982,7 @@ const ProductUpdate = () => {
                     onClick={handleAddAttribute}
                     style={{ padding: "8px 16px", marginTop: "10px" }}
                     disabled={attributes.length >= attributeTypes.length * 5 || !newAttribute.trim()}
+                    aria-label="Thêm thuộc tính"
                   >
                     Thêm thuộc tính
                   </Button>
@@ -773,7 +992,7 @@ const ProductUpdate = () => {
           </div>
 
           <div className="col-md-12">
-            <div className="card p-4 mt-0">
+            <div className="card p-4 mt-2">
               <div className="imagesUploadSec">
                 <div className="row">
                   <div className="col-md-6 mb-4">
@@ -788,7 +1007,7 @@ const ProductUpdate = () => {
                         <div className="uploaded-image-preview shadow-sm rounded">
                           <LazyLoadImage
                             src={imagePreviews.main}
-                            alt="Main preview"
+                            alt="Ảnh chính"
                             className="w-100 h-100 object-fit-cover"
                             effect="blur"
                             style={{ minHeight: "200px" }}
@@ -802,6 +1021,7 @@ const ProductUpdate = () => {
                                 onChange={handleMainImageChange}
                                 className="d-none"
                                 ref={fileInputRef}
+                                aria-label="Thay đổi ảnh chính"
                               />
                             </label>
                           </div>
@@ -814,6 +1034,7 @@ const ProductUpdate = () => {
                           accept="image/*"
                           onChange={handleMainImageChange}
                           className="d-none"
+                          aria-label="Tải ảnh chính"
                         />
                         <div className="text-center">
                           <FaCloudUploadAlt size={24} color="#007bff" />
@@ -836,14 +1057,14 @@ const ProductUpdate = () => {
                               <div
                                 className="additional-image-preview shadow-sm rounded"
                                 style={{
-                                  border: "1px dashed #ddd",
+                                  border: "2px dashed #ddd",
                                   overflow: "hidden",
                                   aspectRatio: "1/1",
                                 }}
                               >
                                 <LazyLoadImage
                                   src={preview}
-                                  alt={`Additional ${index}`}
+                                  alt={`Ảnh phụ ${index + 1}`}
                                   className="w-100 h-100 object-fit-cover"
                                   effect="blur"
                                 />
@@ -859,6 +1080,7 @@ const ProductUpdate = () => {
                                     alignItems: "center",
                                     justifyContent: "center",
                                   }}
+                                  aria-label={`Xóa ảnh phụ ${index + 1}`}
                                 >
                                   <IoCloseSharp size={12} />
                                 </button>
@@ -884,6 +1106,7 @@ const ProductUpdate = () => {
                                 multiple
                                 onChange={handleAdditionalImagesChange}
                                 className="d-none"
+                                aria-label="Tải ảnh phụ"
                               />
                               <div className="text-center p-2">
                                 <FaPlus size={20} color="#6c757d" />
@@ -899,16 +1122,40 @@ const ProductUpdate = () => {
               </div>
               <div className="row mt-4">
                 <div className="col-md-12 text-center">
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    color="primary"
-                    disabled={isSubmitting || units.length === 0 || categories.length === 0}
-                    startIcon={<FaCloudUploadAlt />}
-                    style={{ padding: "8px 24px" }}
-                  >
-                    {isSubmitting ? "Đang xử lý..." : "Cập nhật sản phẩm"}
-                  </Button>
+                  <div className="d-flex justify-content-center gap-3">
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      color="primary"
+                      disabled={isSubmitting || units.length === 0 || categories.length === 0 || !!errors.code ||
+                        errors.productDetails?.some((err) => err.barCode === "Mã Barcode đã tồn tại")}
+                      startIcon={isSubmitting ? <CircularProgress size={12} /> : <FaCloudUploadAlt />}
+                    >
+                      {isSubmitting ? "Đang xử lý..." : "Cập nhật sản phẩm"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      color="secondary"
+                      onClick={resetForm}
+                      startIcon={<FaSync />}
+                      style={{ padding: "8px 16px" }}
+                      aria-label="Đặt lại biểu mẫu"
+                    >
+                      Đặt lại
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color={productData.status === "ACTIVE" ? "error" : "success"}
+                      onClick={handleDeleteOrReset}
+                      startIcon={productData.status === "ACTIVE" ? <FaTrash /> : <FaPlus />}
+                      style={{ padding: "8px 24px" }}
+                      disabled={isSubmitting}
+                      aria-label={productData.status === "ACTIVE" ? "Xóa sản phẩm" : "Kích hoạt lại sản phẩm"}
+                    >
+                      {productData.status === "ACTIVE" ? "Xóa" : "Kích hoạt lại"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

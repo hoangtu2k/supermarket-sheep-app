@@ -9,7 +9,7 @@ import Button from "@mui/material/Button";
 
 // Icons
 import { FaAngleRight, FaBell } from "react-icons/fa6";
-import { FaBoxOpen, FaChartPie, FaExchangeAlt, FaHandshake, FaShoppingCart, FaUserTimes } from "react-icons/fa";
+import { FaBoxOpen, FaChartPie, FaHandshake, FaShoppingCart, FaUserTimes, FaWarehouse } from "react-icons/fa";
 import { MdMessage } from "react-icons/md";
 import { IoIosSettings, IoMdLogOut } from "react-icons/io";
 
@@ -60,26 +60,30 @@ const Sidebar = () => {
                         <div className={`submenuWrapper ${activeTab === 1 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
                                 <li><Link to="/admin/products">Danh sách sản phẩm</Link></li>
-                                <li><Link to="/admin/product-details">Chi tiết sản phẩm</Link></li>
-                                <li><Link to="/admin/product-upload">Tải lên sản phẩm</Link></li>
+                                <li><Link to="/admin/categories">Danh mục sản phẩm</Link></li>
                             </ul>
                         </div>
 
                     </li>
+
                     <li>
                         <Button className={`w-100 ${activeTab === 2 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(2)}>
-                            <span className="icon"><FaExchangeAlt /></span>
-                            Giao dịch
+                            <span className="icon"><FaWarehouse /></span>
+                            Quản lý kho
                             <span className="arrow"><FaAngleRight /></span>
                         </Button>
 
                         <div className={`submenuWrapper ${activeTab === 2 && isToggleSubmenu === true ? 'colapse' : 'colapsed'} `}>
                             <ul className="submenu">
-                                <li><Link to="/admin">Đặt hàng</Link></li>
+                                <li><Link to="/admin/">Tồn kho</Link></li>
+                                <li><Link to="/admin/">Đặt hàng nhập</Link></li>
                                 <li><Link to="/admin/importslips">Nhập hàng</Link></li>
+                                <li><Link to="/admin/">Trả hàng nhập</Link></li>
+                                <li><Link to="/admin/">Nhà cung cấp</Link></li>
                             </ul>
                         </div>
                     </li>
+
                     <li>
                         <Button className={`w-100 ${activeTab === 3 && isToggleSubmenu === true ? 'active' : ''}`} onClick={() => isOpenSubmenu(3)}>
                             <span className="icon"><FaUserTimes /></span>

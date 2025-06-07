@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button, Modal, Box, Typography, FormControl, MenuItem, Pagination, Select, CircularProgress, Tooltip } from '@mui/material';
 import Swal from 'sweetalert2';
 import { toast } from 'react-toastify';
-import { FaEye, FaPencilAlt } from 'react-icons/fa';
+import { FaEye } from 'react-icons/fa';
 import { MdDelete } from 'react-icons/md';
 import { RxReset } from 'react-icons/rx';
 import { MyContext } from '../../../App';
@@ -126,12 +126,12 @@ const Products = () => {
     }
   };
 
-  const handleOpenModelUpdateProduct = (product) => {
-    navigate(`/admin/product-update/${product.id}`);
-  };
-
   const handleViewProduct = (product) => {
     navigate(`/admin/product-details/${product.id}`);
+  };
+
+  const handleRowClick = (product) => {
+    navigate(`/admin/product-update/${product.id}`);
   };
 
   const formatPrice = (price) => {
@@ -199,6 +199,11 @@ const Products = () => {
               Nhập Excel
             </Button>
           </div>
+          <div className="col-md-3">
+            <Link to="/admin/product-upload">
+              <Button className="btn-blue btn-lg btn-big">Thêm sản phẩm</Button>
+            </Link>
+          </div>
         </div>
 
         <div className="row cardFilters mt-3">
@@ -254,35 +259,54 @@ const Products = () => {
               <table className="table table-bordered v-align">
                 <thead className="thead-dark">
                   <tr>
-                    <th>Mã sản phẩm</th>
                     <th style={{ width: '300px' }}>Sản phẩm</th>
-                    <th>Số lượng</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
+                    <th>Có thể bán</th>
+                    <th>Ngày khởi tạo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td>{product.productDetails?.[0]?.code || 'N/A'}</td>
-                      <td>
+                    <tr
+                      key={product.id}
+                      onClick={() => handleRowClick(product)}
+                      style={{ cursor: 'pointer' }}
+                      className="hover-row"
+                    >
+                      <td style={{ verticalAlign: 'middle', padding: '8px' }}>
                         <div className="d-flex align-items-center productBox">
                           <div className="imgWrapper">
-                            <div className="img card shadow m-0">
+                            <div
+                              className="img card shadow m-0"
+                              style={{
+                                maxWidth: '50px',
+                                maxHeight: '50px',
+                                width: '50px',
+                                height: '50px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                              }}
+                            >
                               <img
                                 src={product.imageUrl || '/default-image.png'}
-                                className="w-100"
+                                style={{
+                                  objectFit: 'contain',
+                                  objectPosition: 'center',
+                                  maxWidth: '100%',
+                                  maxHeight: '100%',
+                                }}
                                 alt={product.name}
                               />
                             </div>
                           </div>
                           <div className="info pl-3">
-                            <h6>{product.name}</h6>
+                           <h6> <Link>{product.name}</Link></h6>
                             <p>{product.description || 'Không có mô tả'}</p>
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td style={{ verticalAlign: 'middle', padding: '8px' }}>
                         <div className="d-flex align-items-center">
                           <span>{product.quantity}</span>
                           {product.quantity === OUT_OF_STOCK ? (
@@ -296,41 +320,7 @@ const Products = () => {
                           ) : null}
                         </div>
                       </td>
-                      <td>{product.status}</td>
-                      <td>
-                        <div className="actions d-flex align-items-center">
-                          <Button
-                            className="secondary"
-                            color="secondary"
-                            onClick={() => handleViewProduct(product)}
-                          >
-                            <FaEye />
-                          </Button>
-                          <Button
-                            className="success"
-                            color="success"
-                            onClick={() => handleOpenModelUpdateProduct(product)}
-                          >
-                            <FaPencilAlt />
-                          </Button>
-                          {product.status === 'ACTIVE' ? (
-                            <Button
-                              className="error"
-                              color="error"
-                              onClick={() => product.id ? handleDelete(product.id) : Swal.fire("Lỗi", "ID sản phẩm không hợp lệ", "error")}
-                            >
-                              <MdDelete />
-                            </Button>
-                          ) : (
-                            <Button
-                              className="reset-button"
-                              onClick={() => product.id ? handleReset(product.id) : Swal.fire("Lỗi", "ID sản phẩm không hợp lệ", "error")}
-                            >
-                              <RxReset />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
+                      <td style={{ verticalAlign: 'middle', padding: '8px' }}>{product.createDate || 'Chưa có thông tin'}</td>
                     </tr>
                   ))}
                 </tbody>
