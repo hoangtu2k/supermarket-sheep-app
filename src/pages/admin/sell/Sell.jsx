@@ -156,7 +156,7 @@ const Sell = () => {
       return;
     }
 
-    // Kiểm tra tính hợp lệ của các mục trong giỏ
+    // Validate cart items
     for (const item of currentCart) {
       if (!item.selectedUnitId) {
         alert(`Vui lòng chọn đơn vị cho sản phẩm ${item.name}`);
@@ -165,6 +165,14 @@ const Sell = () => {
       const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === item.selectedUnitId);
       if (!selectedDetail || !selectedDetail.id) {
         alert(`Không tìm thấy chi tiết sản phẩm cho đơn vị đã chọn của ${item.name}`);
+        return;
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        alert(`Số lượng của sản phẩm ${item.name} không hợp lệ`);
+        return;
+      }
+      if (!item.price || item.price < 0) {
+        alert(`Giá của sản phẩm ${item.name} không hợp lệ`);
         return;
       }
     }
@@ -178,7 +186,7 @@ const Sell = () => {
       items: currentCart.map((item) => {
         const selectedDetail = (item.productDetails || []).find((detail) => detail.unitId === item.selectedUnitId);
         return {
-          productDetailsId: selectedDetail.id, // Gửi productDetailsId thay vì productId
+          productDetailsId: selectedDetail.id,
           quantity: item.quantity,
           unitPrice: Number(item.price.toFixed(2)),
           subtotal: Number((item.price * item.quantity).toFixed(2)),
@@ -191,7 +199,7 @@ const Sell = () => {
       const response = await sellService.submitOrder(orderData);
       console.log("Đơn hàng đã được gửi:", response.data);
 
-      // Xóa hóa đơn hiện tại sau khi gửi thành công
+      // Reset state after successful submission
       setInvoices((prev) => {
         const newInvoices = prev.filter((inv) => inv.id !== currentInvoiceId);
         if (newInvoices.length === 0) {
@@ -228,9 +236,7 @@ const Sell = () => {
     } catch (error) {
       console.error("Lỗi khi gửi đơn hàng:", error);
       const errorMessage =
-        error.response?.status === 400 && error.response?.data?.message
-          ? error.response.data.message
-          : "Có lỗi xảy ra khi thanh toán. Vui lòng thử lại.";
+        error.response?.data || "Có lỗi xảy ra khi thanh toán. Vui lòng thử lại.";
       alert(errorMessage);
     }
   };
@@ -408,12 +414,12 @@ const Sell = () => {
           quantity: product.quantity || 0,
           productDetails: Array.isArray(product.productDetails)
             ? product.productDetails.map((detail) => ({
-                id: detail.id || `default-${product.id}`,
-                code: detail.code || `PD-${product.id}`,
-                unitId: detail.unitId || null,
-                price: Number(detail.price) || 0,
-                conversionRate: detail.conversionRate || 1,
-              }))
+              id: detail.id || `default-${product.id}`,
+              code: detail.code || `PD-${product.id}`,
+              unitId: detail.unitId || null,
+              price: Number(detail.price) || 0,
+              conversionRate: detail.conversionRate || 1,
+            }))
             : [{ id: `default-${product.id}`, code: `PD-${product.id}`, unitId: null, price: 0, conversionRate: 1 }],
         }));
         setProducts(transformedProducts);
