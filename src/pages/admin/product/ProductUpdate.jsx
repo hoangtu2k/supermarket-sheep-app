@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Button, FormControl, MenuItem, Select } from "@mui/material";
+import { Button, FormControl, MenuItem, Select, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
 import { LazyLoadImage } from "react-lazy-load-image-component";
 import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
@@ -17,7 +17,9 @@ const ProductUpdate = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState({});
-  const [units, setUnits] = useState([]); // State để lưu danh sách Unit
+  const [units, setUnits] = useState([]);
+  const [categories, setCategories] = useState([]); // State để lưu danh sách danh mục
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]); // State để lưu danh mục được chọn
   const fileInputRef = useRef(null);
 
   const [productData, setProductData] = useState({
@@ -51,7 +53,7 @@ const ProductUpdate = () => {
 
   const [previewUrls, setPreviewUrls] = useState([]);
 
-  // Lấy danh sách Unit từ backend
+  // Lấy danh sách Unit và Categories từ backend
   useEffect(() => {
     const fetchUnits = async () => {
       try {
@@ -62,7 +64,19 @@ const ProductUpdate = () => {
         Swal.fire('Lỗi', 'Không thể tải danh sách đơn vị', 'error');
       }
     };
+
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('/admin/categories');
+        setCategories(response.data);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        Swal.fire('Lỗi', 'Không thể tải danh sách danh mục', 'error');
+      }
+    };
+
     fetchUnits();
+    fetchCategories();
   }, []);
 
   // Tải dữ liệu sản phẩm
@@ -104,6 +118,9 @@ const ProductUpdate = () => {
           main: product.imageUrl || null,
           additional: product.notMainImages || [],
         });
+
+        // Lấy danh sách categoryIds từ product
+        setSelectedCategoryIds(product.categoryIds || []);
       } catch (error) {
         Swal.fire({
           title: "Lỗi",
@@ -123,6 +140,16 @@ const ProductUpdate = () => {
       previewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [id, units]);
+
+  // Xử lý chọn/hủy chọn danh mục
+  const handleCategoryChange = (categoryId) => {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    );
+    setErrors((prev) => ({ ...prev, categories: "" }));
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -265,64 +292,69 @@ const ProductUpdate = () => {
   };
 
   const validateForm = () => {
-  const newErrors = {};
-  let isValid = true;
+    const newErrors = {};
+    let isValid = true;
 
-  if (!productData.name.trim()) {
-    newErrors.name = "Tên sản phẩm là bắt buộc";
-    isValid = false;
-  }
-
-  if (!imagePreviews.main && !productData.imageUrl) {
-    newErrors.mainImage = "Ảnh chính là bắt buộc";
-    isValid = false;
-  }
-
-  const detailErrors = productData.productDetails?.map((detail, index) => {
-    const errors = {};
-    if (!detail.code.trim()) {
-      errors.code = "Mã code là bắt buộc";
-      isValid = false;
-    } else if (detail.code.length > 50) { // Sửa từ > 0 thành > 50
-      errors.code = "Mã code không được vượt quá 50 ký tự";
+    if (!productData.name.trim()) {
+      newErrors.name = "Tên sản phẩm là bắt buộc";
       isValid = false;
     }
-    if (!detail.unitId) {
-      errors.unitId = "Đơn vị là bắt buộc";
+
+    if (!imagePreviews.main && !productData.imageUrl) {
+      newErrors.mainImage = "Ảnh chính là bắt buộc";
       isValid = false;
     }
-    if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
-      errors.price = "Giá bán phải lớn hơn 0";
+
+    if (selectedCategoryIds.length === 0) {
+      newErrors.categories = "Phải chọn ít nhất một danh mục";
       isValid = false;
     }
-    if (
-      !detail.conversionRate ||
-      isNaN(parseInt(detail.conversionRate)) ||
-      parseInt(detail.conversionRate) < 1
-    ) {
-      errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
+
+    const detailErrors = productData.productDetails?.map((detail, index) => {
+      const errors = {};
+      if (!detail.code.trim()) {
+        errors.code = "Mã code là bắt buộc";
+        isValid = false;
+      } else if (detail.code.length > 50) {
+        errors.code = "Mã code không được vượt quá 50 ký tự";
+        isValid = false;
+      }
+      if (!detail.unitId) {
+        errors.unitId = "Đơn vị là bắt buộc";
+        isValid = false;
+      }
+      if (!detail.price || isNaN(parseFloat(detail.price)) || parseFloat(detail.price) <= 0) {
+        errors.price = "Giá bán phải lớn hơn 0";
+        isValid = false;
+      }
+      if (
+        !detail.conversionRate ||
+        isNaN(parseInt(detail.conversionRate)) ||
+        parseInt(detail.conversionRate) < 1
+      ) {
+        errors.conversionRate = "Tỷ lệ quy đổi phải lớn hơn hoặc bằng 1";
+        isValid = false;
+      }
+      return errors;
+    });
+
+    const codes = productData.productDetails.map((d) => d.code.trim()).filter((c) => c);
+    if (new Set(codes).size !== codes.length) {
+      Swal.fire("Lỗi", "Mã code không được trùng lặp", "warning");
       isValid = false;
     }
-    return errors;
-  });
 
-  const codes = productData.productDetails.map((d) => d.code.trim()).filter((c) => c);
-  if (new Set(codes).size !== codes.length) {
-    Swal.fire("Lỗi", "Mã code không được trùng lặp", "warning");
-    isValid = false;
-  }
+    if (productData.productDetails.length === 0) {
+      Swal.fire("Lỗi", "Phải có ít nhất một đơn vị bán", "warning");
+      isValid = false;
+    }
 
-  if (productData.productDetails.length === 0) {
-    Swal.fire("Lỗi", "Phải có ít nhất một đơn vị bán", "warning");
-    isValid = false;
-  }
-
-  setErrors({ ...newErrors, productDetails: detailErrors });
-  if (!isValid) {
-    Swal.fire("Lỗi", "Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc", "error");
-  }
-  return isValid;
-};
+    setErrors({ ...newErrors, productDetails: detailErrors });
+    if (!isValid) {
+      Swal.fire("Lỗi", "Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc", "error");
+    }
+    return isValid;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -380,6 +412,7 @@ const ProductUpdate = () => {
         mainImage: !!mainImageUrl,
         imageUrl: mainImageUrl || null,
         notMainImages: additionalImageUrls,
+        categoryIds: selectedCategoryIds, // Thêm danh sách categoryIds
       };
 
       await productService.updateProduct(id, updateData);
@@ -496,6 +529,32 @@ const ProductUpdate = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Thêm phần chọn danh mục */}
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
+              <FormGroup>
+                <div className="row">
+                  {categories.map((category) => (
+                    <div key={category.id} className="col-md-4">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedCategoryIds.includes(category.id)}
+                            onChange={() => handleCategoryChange(category.id)}
+                            name={category.name}
+                          />
+                        }
+                        label={category.name}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </FormGroup>
+              {errors.categories && <p className="text-danger small">{errors.categories}</p>}
             </div>
           </div>
 
@@ -759,7 +818,7 @@ const ProductUpdate = () => {
                     type="submit"
                     variant="contained"
                     color="primary"
-                    disabled={isSubmitting || units.length === 0}
+                    disabled={isSubmitting || units.length === 0 || categories.length === 0}
                     startIcon={<FaCloudUploadAlt />}
                     style={{ padding: "8px 24px" }}
                   >

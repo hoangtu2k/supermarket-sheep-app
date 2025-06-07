@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Button, FormControl, MenuItem, Select, InputLabel } from "@mui/material";
+import { Button, FormControl, MenuItem, Select, InputLabel, FormGroup, FormControlLabel, Checkbox } from "@mui/material";
 import { LazyLoadImage } from 'react-lazy-load-image-component';
 import { FaArrowLeft, FaCloudUploadAlt, FaPencilAlt, FaPlus } from "react-icons/fa";
 import { IoCloseSharp } from "react-icons/io5";
@@ -8,13 +8,15 @@ import Swal from "sweetalert2";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../../services/firebase";
 import { productService } from "../../../services/productService";
-import axios from "axios"; // Thêm axios để gọi API lấy danh sách Unit
+import axios from "axios";
 
 const ProductUpload = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  const [units, setUnits] = useState([]); // State để lưu danh sách Unit từ backend
+  const [units, setUnits] = useState([]);
+  const [categories, setCategories] = useState([]); // State để lưu danh sách danh mục
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]); // State để lưu danh mục được chọn
 
   const [productData, setProductData] = useState({
     name: "",
@@ -23,7 +25,7 @@ const ProductUpload = () => {
     quantity: 0,
     productDetails: [{
       code: "",
-      unitId: "", // Thay unit thành unitId
+      unitId: "",
       conversionRate: 1,
       price: ""
     }],
@@ -40,19 +42,18 @@ const ProductUpload = () => {
     additional: []
   });
 
-  // Lấy danh sách Unit từ backend khi component mount
+  // Lấy danh sách Unit và Categories từ backend
   useEffect(() => {
     const fetchUnits = async () => {
       try {
-        const response = await axios.get('/admin/units'); // Giả sử API endpoint là /admin/units
+        const response = await axios.get('/admin/units');
         setUnits(response.data);
-        // Nếu có units, đặt unitId mặc định cho productDetails đầu tiên
         if (response.data.length > 0) {
           setProductData(prev => ({
             ...prev,
             productDetails: [{
               ...prev.productDetails[0],
-              unitId: response.data[0].id // Gán unitId mặc định
+              unitId: response.data[0].id
             }]
           }));
         }
@@ -61,8 +62,29 @@ const ProductUpload = () => {
         Swal.fire('Lỗi', 'Không thể tải danh sách đơn vị', 'error');
       }
     };
+
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('/admin/categories');
+        setCategories(response.data);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        Swal.fire('Lỗi', 'Không thể tải danh sách danh mục', 'error');
+      }
+    };
+
     fetchUnits();
+    fetchCategories();
   }, []);
+
+  // Xử lý chọn/hủy chọn danh mục
+  const handleCategoryChange = (categoryId) => {
+    setSelectedCategoryIds(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -186,13 +208,14 @@ const ProductUpload = () => {
         status: "ACTIVE",
         productDetails: productData.productDetails.map(detail => ({
           code: detail.code.trim(),
-          unitId: parseInt(detail.unitId), // Gửi unitId thay vì unit
+          unitId: parseInt(detail.unitId),
           conversionRate: parseInt(detail.conversionRate) || 1,
           price: parseFloat(detail.price).toFixed(2)
         })),
         mainImage: true,
         imageUrl: mainImageUrl,
-        notMainImages: additionalUrls
+        notMainImages: additionalUrls,
+        categoryIds: selectedCategoryIds // Thêm danh sách categoryIds
       };
 
       await productService.createProduct(payload);
@@ -218,12 +241,17 @@ const ProductUpload = () => {
     let isValid = true;
 
     if (!productData.name.trim()) {
-      newErrors.name = ")Tên sản phẩm là bắt buộc";
+      newErrors.name = "Tên sản phẩm là bắt buộc";
       isValid = false;
     }
 
     if (!uploadFiles.main) {
       newErrors.mainImage = "Ảnh chính là bắt buộc";
+      isValid = false;
+    }
+
+    if (selectedCategoryIds.length === 0) {
+      newErrors.categories = "Phải chọn ít nhất một danh mục";
       isValid = false;
     }
 
@@ -354,6 +382,32 @@ const ProductUpload = () => {
             </div>
           </div>
 
+          {/* Thêm phần chọn danh mục */}
+          <div className="col-md-12">
+            <div className="card p-4 mt-0">
+              <h5 className="mb-4">Danh mục <span className="text-danger">*</span></h5>
+              <FormGroup>
+                <div className="row">
+                  {categories.map((category) => (
+                    <div key={category.id} className="col-md-4">
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectedCategoryIds.includes(category.id)}
+                            onChange={() => handleCategoryChange(category.id)}
+                            name={category.name}
+                          />
+                        }
+                        label={category.name}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </FormGroup>
+              {errors.categories && <p className="text-danger small">{errors.categories}</p>}
+            </div>
+          </div>
+
           <div className="col-md-12">
             <div className="card p-4 mt-0">
               <h5 className="mb-4">Đơn vị bán <span className="text-danger">*</span></h5>
@@ -380,14 +434,14 @@ const ProductUpload = () => {
                       <h6>Đơn vị <span className="text-danger">*</span></h6>
                       <FormControl fullWidth>
                         <Select
-                          name="unitId" // Đổi thành unitId
+                          name="unitId"
                           value={detail.unitId}
                           onChange={(e) => handleDetailChange(index, e)}
                           required
                         >
                           {units.map((unit) => (
                             <MenuItem key={unit.id} value={unit.id}>
-                              {unit.name} {/* Hiển thị tên đơn vị */}
+                              {unit.name}
                             </MenuItem>
                           ))}
                         </Select>
@@ -599,7 +653,7 @@ const ProductUpload = () => {
                     type="submit"
                     variant="contained"
                     color="primary"
-                    disabled={isSubmitting || units.length === 0}
+                    disabled={isSubmitting || units.length === 0 || categories.length === 0}
                     startIcon={<FaCloudUploadAlt />}
                     style={{ padding: '8px 24px' }}
                   >
